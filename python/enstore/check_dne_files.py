@@ -1,7 +1,7 @@
-#!/usr/bin/env python 
+#!/usr/bin/env python
 
 """
-   This script works with a file containing a list of 
+   This script works with a file containing a list of
    file cache locations extracted from alarms
 
 grep "does not exist in cache. It will be skipped, but please investigate" /srv2/enstore/enstore-log/enstore_alarms.txt  | awk '{print $10}' | sort -u > dne_files.txt
@@ -22,18 +22,22 @@ import configuration_client
 import enstore_functions2
 import string
 import e_errors
-import dbaccess 
+import dbaccess
 import copy
 import os
 import time
 import re
 
 QUERY="""
-select t_inodes.ipnfsid,encode(l1.ifiledata,'escape') as layer1, encode(l2.ifiledata,'escape') as layer2, encode(l4.ifiledata,'escape') as layer4 
-       from t_inodes  left outer join t_level_4 l4 on (l4.ipnfsid=t_inodes.ipnfsid) 
-       left outer join t_level_1 l1 on (l1.ipnfsid=t_inodes.ipnfsid) 
-       left outer join  t_level_2 l2 on (l2.ipnfsid=t_inodes.ipnfsid) 
-       where t_inodes.ipnfsid=%s
+SELECT t_inodes.ipnfsid,
+       encode(l1.ifiledata,'escape') AS layer1,
+       encode(l2.ifiledata,'escape') AS layer2,
+       encode(l4.ifiledata,'escape') AS layer4
+FROM t_inodes
+LEFT OUTER JOIN t_level_4 l4 ON (l4.ipnfsid=t_inodes.ipnfsid)
+LEFT OUTER JOIN t_level_1 l1 ON (l1.ipnfsid=t_inodes.ipnfsid)
+LEFT OUTER JOIN t_level_2 l2 ON (l2.ipnfsid=t_inodes.ipnfsid)
+WHERE t_inodes.ipnfsid=%s
 """
 
 """
@@ -96,7 +100,7 @@ if __name__ == "__main__":
                                  port     = 5432,
                                  user     = "enstore")
 
-    
+
     csc   = configuration_client.ConfigurationClient((enstore_functions2.default_host(),
                                                       enstore_functions2.default_port()))
     fcc = info_client.infoClient(csc)
@@ -104,7 +108,7 @@ if __name__ == "__main__":
     db_info = csc.get('database')
 
     if db_info['status'][0]  != e_errors.OK:
-        print "Failed to get database info",  db_info['status'][0] 
+        print "Failed to get database info",  db_info['status'][0]
         sys.exit(1)
 
 
@@ -134,11 +138,11 @@ if __name__ == "__main__":
             continue
         l1 = res[0][1]
         l4 = res[0][3]
-        
-        if not l1 or not l4 : 
+
+        if not l1 or not l4 :
             print "No layers", pnfsid
             continue
-                
+
         bfid_l1 = l1
         bfid_l4 = l4.split("\n")[8]
 
@@ -148,9 +152,9 @@ if __name__ == "__main__":
 
         bfid_infos=f_info['file_list']
 
-        bfids_stored=filter(lambda x : x['deleted']=='no' and 
+        bfids_stored=filter(lambda x : x['deleted']=='no' and
                             x['tape_label'].find("common") == -1, bfid_infos)
-        bfids_not_stored=filter(lambda x : x['deleted']=='no' and 
+        bfids_not_stored=filter(lambda x : x['deleted']=='no' and
                                 x['tape_label'].find("common") != -1, bfid_infos)
 
         if len(bfids_stored) == 0 :
@@ -163,7 +167,7 @@ if __name__ == "__main__":
 
         bfids_stored_checked = filter(lambda x : x['bfid'] == bfid_l1, bfids_stored)
         bfids_not_stored_checked = filter(lambda x : x['bfid'] == bfid_l1, bfids_not_stored)
-        
+
         print pnfsid, len(bfids_stored_checked), len(bfids_not_stored_checked)
 
         if len(bfids_stored_checked) == 1:
@@ -173,7 +177,7 @@ if __name__ == "__main__":
             bfids_to_mark_unknown=filter(lambda x : x['deleted']=='no' and x['bfid'] != bfids_stored_checked[0]['bfid'], bfid_infos)
             for bfid_info in bfids_to_mark_unknown:
                 edb.update("update file set deleted='u' where bfid=%s",(bfid_info['bfid'],))
-        
+
         elif  len(bfids_stored_checked) == 0:
             """
             Choose a bfid we will retain
@@ -189,7 +193,7 @@ if __name__ == "__main__":
             for bfid_info in bfids_to_mark_unknown:
                 print "marking ", bfid_info['bfid'], " unknown", pnfsid
                 edb.update("update file set deleted='u' where bfid=%s",(bfid_info['bfid'],))
-                
+
             for bfid_info in bfids_not_stored:
                 print "deleting ", bfid_info['bfid'], "from files in transition ", pnfsid
                 edb.update("delete from files_in_transition where bfid=%s",(bfid_info['bfid'],))
@@ -200,4 +204,4 @@ if __name__ == "__main__":
     edb.close()
     db.close()
 
-    
+
