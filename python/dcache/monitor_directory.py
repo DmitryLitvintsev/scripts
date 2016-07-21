@@ -94,15 +94,15 @@ if __name__ == "__main__":
     
 
     BODY="""
-set terminal postscript color solid
-set output 'unmerged.ps'
-set title 'sum of sizes of files in unmerged directory'
+set terminal svg size 600,400 dynamic enhanced fname 'arial'  fsize 10 
+set output 'unmerged.svg'
+set title 'sum of files sizes in unmerged directory'
 set boxwidth 0.75 absolute
 set style fill solid 1.00 border -1
 set xtics border in scale 1,0.5 nomirror rotate by 90
 set y2tics border
 set mxtics 2
-set ylabel "size / day [GiB/day]"
+set ylabel "sum(size)/day [GiB/day]"
 set y2label "cumulative [TiB]"
 set xlabel "date"
 set xdata time
@@ -115,9 +115,12 @@ plot '/tmp/gnuplot.data' using 1:($3/1024./1024./1024.) with impulses lw 5 t 'pe
     with open("/tmp/gnuplot.cmd","w") as f :
         f.write(BODY)
     f.closed
+
     rc=os.system("gnuplot /tmp/gnuplot.cmd")
-    rc=os.system("convert -flatten -rotate 90 unmerged.ps  unmerged.jpg")
-    
+    os.unlink("/tmp/gnuplot.cmd")    
+    os.unlink("/tmp/gnuplot.data")
+    sys.exit(0)
+
 
 
     
