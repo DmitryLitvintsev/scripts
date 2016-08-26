@@ -10,7 +10,7 @@
       and NFS domain is taken thread dump of and restarted
 
    Input argument - timeout in seconds (optional). Deault is 10 seconds.
-   NB: e-mail addressed need to be edited to tailor to your case
+   NB: e-mail addresses need to be edited to tailor to your case
 
 """
 
@@ -43,7 +43,7 @@ def signal_handler(signum, frame):
     raise Exception("TIMEDOUT")
 
 def send_mail(subject, message):
-    from_addr = "enstore@localost"
+    from_addr = "enstore@localhost"
     to_addr = "joe@example.com, doe@example.com"
     msg = ["From: %s"%(from_addr),
            "To: %s"%(to_addr),
