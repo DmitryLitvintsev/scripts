@@ -1,7 +1,7 @@
-#!/usr/bin/env python 
+#!/usr/bin/env python
 
 """
-   This script works with a file containing a list of 
+   This script works with a file containing a list of
    file cache locations extracted from alarms
 
 grep "does not exist in cache. It will be skipped, but please investigate" /srv2/enstore/enstore-log/enstore_alarms.txt  | awk '{print $10}' | sort -u > dne_files.txt
@@ -22,7 +22,7 @@ import configuration_client
 import enstore_functions2
 import string
 import e_errors
-import dbaccess 
+import dbaccess
 import copy
 import os
 import time
@@ -30,10 +30,10 @@ import re
 
 
 QUERY="""
-select t_inodes.ipnfsid,encode(l1.ifiledata,'escape') as layer1, encode(l2.ifiledata,'escape') as layer2, encode(l4.ifiledata,'escape') as layer4 
-       from t_inodes  left outer join t_level_4 l4 on (l4.ipnfsid=t_inodes.ipnfsid) 
-       left outer join t_level_1 l1 on (l1.ipnfsid=t_inodes.ipnfsid) 
-       left outer join  t_level_2 l2 on (l2.ipnfsid=t_inodes.ipnfsid) 
+select t_inodes.ipnfsid,encode(l1.ifiledata,'escape') as layer1, encode(l2.ifiledata,'escape') as layer2, encode(l4.ifiledata,'escape') as layer4
+       from t_inodes  left outer join t_level_4 l4 on (l4.ipnfsid=t_inodes.ipnfsid)
+       left outer join t_level_1 l1 on (l1.ipnfsid=t_inodes.ipnfsid)
+       left outer join  t_level_2 l2 on (l2.ipnfsid=t_inodes.ipnfsid)
        where t_inodes.ipnfsid=%s
 """
 
@@ -61,7 +61,6 @@ def get_path(pnfsid):
     path=None
     with open("/pnfs/fs/usr/.(pathof)(%s)"%(pnfsid,),"r") as fd:
         path=fd.readlines()[0].strip()
-    fd.closed
     return path
 
 def write_layer(path,text,layer):
@@ -70,7 +69,6 @@ def write_layer(path,text,layer):
     layer_file = os.path.join(dirname,'.(use)(%s)(%s)'%(str(layer),fname))
     with open(layer_file,'w') as fd:
         fd.write(text)
-    fd.closed
 
 def write_layer_1(path,text):
     dirname=os.path.dirname(path)
@@ -78,7 +76,6 @@ def write_layer_1(path,text):
     layer_file = os.path.join(dirname,'.(use)(1)(%s)'%(fname))
     with open(layer_file,'w') as fd:
         fd.write(text)
-    fd.closed
 
 
 def write_layer_4(path,text):
@@ -88,7 +85,6 @@ def write_layer_4(path,text):
     with open(layer_file,'w') as fd:
         #fd.write("%s\n"%(text),)
         fd.write(text)
-    fd.closed
 
 if __name__ == "__main__":
 
@@ -104,14 +100,14 @@ specify containing list of locations, one location per line:
 """
         sys.exit(1)
 
-        
+
     db = dbaccess.DatabaseAccess(maxconnections=1,
                                  host     = "localhost",
                                  database = "chimera",
                                  port     = 5432,
                                  user     = "enstore")
 
-    
+
     csc   = configuration_client.ConfigurationClient((enstore_functions2.default_host(),
                                                       enstore_functions2.default_port()))
     fcc = info_client.infoClient(csc)
@@ -119,7 +115,7 @@ specify containing list of locations, one location per line:
     db_info = csc.get('database')
 
     if db_info['status'][0]  != e_errors.OK:
-        print "Failed to get database info",  db_info['status'][0] 
+        print "Failed to get database info",  db_info['status'][0]
         sys.exit(1)
 
 
@@ -130,12 +126,11 @@ specify containing list of locations, one location per line:
                                  user     = db_info.get('dbuser'))
 
 
-    
-    
+
+
 
     with open(sys.argv[1],"r") as f:
         pnfsids=[ x.strip().split("/")[-1] for x in f.readlines()]
-    f.closed
 
     for pnfsid in pnfsids:
         f_info = fcc.find_file_by_pnfsid(pnfsid)
@@ -153,11 +148,11 @@ specify containing list of locations, one location per line:
             continue
         l1 = res[0][1]
         l4 = res[0][3]
-        
-        if not l1 or not l4 : 
+
+        if not l1 or not l4 :
             print "No layers", pnfsid
             continue
-                
+
         bfid_l1 = l1
         bfid_l4 = l4.split("\n")[8]
 
@@ -167,9 +162,9 @@ specify containing list of locations, one location per line:
 
         bfid_infos=f_info['file_list']
 
-        bfids_stored=filter(lambda x : x['deleted']=='no' and 
+        bfids_stored=filter(lambda x : x['deleted']=='no' and
                             x['tape_label'].find("common") == -1, bfid_infos)
-        bfids_not_stored=filter(lambda x : x['deleted']=='no' and 
+        bfids_not_stored=filter(lambda x : x['deleted']=='no' and
                                 x['tape_label'].find("common") != -1, bfid_infos)
 
         if len(bfids_stored) == 0 :
@@ -182,7 +177,7 @@ specify containing list of locations, one location per line:
 
         bfids_stored_checked = filter(lambda x : x['bfid'] == bfid_l1, bfids_stored)
         bfids_not_stored_checked = filter(lambda x : x['bfid'] == bfid_l1, bfids_not_stored)
-        
+
         print pnfsid, len(bfids_stored_checked), len(bfids_not_stored_checked)
 
         if len(bfids_stored_checked) == 1:
@@ -192,7 +187,7 @@ specify containing list of locations, one location per line:
             bfids_to_mark_unknown=filter(lambda x : x['deleted']=='no' and x['bfid'] != bfids_stored_checked[0]['bfid'], bfid_infos)
             for bfid_info in bfids_to_mark_unknown:
                 edb.update("update file set deleted='u' where bfid=%s",(bfid_info['bfid'],))
-        
+
         elif  len(bfids_stored_checked) == 0:
             """
             Choose a bfid we will retain
@@ -208,7 +203,7 @@ specify containing list of locations, one location per line:
             for bfid_info in bfids_to_mark_unknown:
                 print "marking ", bfid_info['bfid'], " unknown", pnfsid
                 edb.update("update file set deleted='u' where bfid=%s",(bfid_info['bfid'],))
-                
+
             for bfid_info in bfids_not_stored:
                 print "deleting ", bfid_info['bfid'], "from files in transition ", pnfsid
                 edb.update("delete from files_in_transition where bfid=%s",(bfid_info['bfid'],))
@@ -219,4 +214,4 @@ specify containing list of locations, one location per line:
     edb.close()
     db.close()
 
-    
+

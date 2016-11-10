@@ -1,4 +1,4 @@
-#!/usr/bin/env python 
+#!/usr/bin/env python
 
 import sys
 import chimera
@@ -9,7 +9,7 @@ import string
 import e_errors
 import chimera
 import file_utils
-import dbaccess 
+import dbaccess
 import copy
 from optparse import OptionParser
 
@@ -74,7 +74,7 @@ if __name__ == "__main__":
                                                       enstore_functions2.default_port()))
 
     namespaceDictionary = csc.get('namespace',None)
-    
+
     if not e_errors.is_ok(namespaceDictionary):
         sys.stderr.write("Got error retrieving namespace dictionary from config %s\n"%(str(namespaceDictionary['status'])))
         sys.exit(1)
@@ -87,10 +87,10 @@ if __name__ == "__main__":
 
     dbInfo =  csc.get("database")
 
-    if not dbInfo: 
+    if not dbInfo:
         sys.stderr.write("No enstorre database information")
         sys.exit(1)
-        
+
     enstoredb = dbaccess.DatabaseAccess(maxconnections=1,
                                         host = dbInfo.get("dbhost","localhost"),
                                         port = dbInfo.get("dbport","8888"),
@@ -101,7 +101,6 @@ if __name__ == "__main__":
     if options.file :
         with open(options.file,"r") as f:
             data = [ i.strip().split() for i in f.readlines()]
-        f.closed
     else:
         data = enstoredb.query(DUPLICATE_QUERY)
 
@@ -145,36 +144,36 @@ if __name__ == "__main__":
                 for db in databases:
                     res = db.query("select inode2path(%s)",(pnfsid,))
                     if len(res) > 0 and res[0][0] != '':
-                        theDB = db 
+                        theDB = db
                         path = res[0][0]
                         layers = db.query_getresult(CHIMERA_QUERY,(pnfsid,))
-                        
+
                         l1 = layers[0][1]
                         l4 = layers[0][3]
-                        
-                        if not l1 or not l4 : 
+
+                        if not l1 or not l4 :
                             print "No layers", pnfsid, path
-                            doContinue = False 
+                            doContinue = False
                             break
 
                         bfid_l1 = l1
                         bfid_l4 = l4.split("\n")[8]
                         pnfs_label =  l4.split("\n")[0]
                         pnfs_cookie =  l4.split("\n")[1]
-                    
+
                         if bfid_l1 != bfid_l4:
                             print "layer 1 != layer 4", pnfsid, path
                             doContinue=False
                             break
                         print pnfsid, bfid_l4, pnfs_label, pnfs_cookie, path
                         break
-                if not theDB or not doContinue: 
+                if not theDB or not doContinue:
                     bad_ids.add(pnfsid)
                 else:
                     pnfsids[pnfsid]['bfid'] = bfid_l4
                     pnfsids[pnfsid]['location_cookie'] = pnfs_cookie
                     pnfsids[pnfsid]['label'] = pnfs_label
-            pnfsids[pnfsid]['bfids'].append(bfid) 
+            pnfsids[pnfsid]['bfids'].append(bfid)
 
 
     for pnfsid, values in pnfsids.iteritems():
@@ -193,4 +192,4 @@ if __name__ == "__main__":
         db.close()
     enstoredb.close()
 
-    
+
