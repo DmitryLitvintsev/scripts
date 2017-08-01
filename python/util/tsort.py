@@ -36,7 +36,7 @@ def tsort(graph):
 
     """
 
-    if type(graph) == types.ListType:
+    if isinstance(graph, types.ListType):
         graph = dict(graph)
     """
     count incoming edges for each vertex
@@ -50,7 +50,7 @@ def tsort(graph):
     """
     create dict of vertices that have no incoming edges
     """
-    empty = {v for v, count in incoming_edges.items() if count == 0 }
+    empty = {v for v, count in incoming_edges.items() if count == 0}
 
     sorted_graph = []
 
@@ -67,7 +67,7 @@ def tsort(graph):
         vertex.
         """
 
-        for edge in graph.get(v,[]):
+        for edge in graph.get(v, []):
             incoming_edges[edge] -= 1
             if incoming_edges[edge] == 0:
                 empty.add(edge)
@@ -82,13 +82,12 @@ def tsort(graph):
 
 if __name__ == "__main__":
 
-    a = [  (3, [8,10]),
-           (5, [11]),
-           (11, [2,9,10]),
-           (7, [8,11]),
-           (8, [9]),
-           (10,[8]),
-           ]
-
+    a = [(3, [8, 10]),
+         (5, [11]),
+         (11, [2, 9, 10]),
+         (7, [8, 11]),
+         (8, [9]),
+         (10, [8]),
+        ]
     sorted_a = tsort(a)
     print sorted_a
