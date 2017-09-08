@@ -9,7 +9,7 @@ import sys
 import time
 
 import test
-
+import pprint
 
 printLock = multiprocessing.Lock()
 
@@ -34,9 +34,10 @@ def execute_command(cmd):
     return rc
 
 class Worker(multiprocessing.Process):
-    def __init__(self,queue):
+    def __init__(self,queue,report):
         super(Worker,self).__init__()
         self.queue = queue
+        self.report = report
 
     def run(self):
         for t in iter(self.queue.get, None):
@@ -45,31 +46,13 @@ class Worker(multiprocessing.Process):
                 print_message("FAILURE for %s \n %s"%(t,t.error))
             else:
                 print_message("SUCCESS for %s"%(t,))
-
-
-#        for t in iter(self.queue.get, None):
-#            if t.write_test:
-#                rc=execute_command(t.write_test)
-#                if rc :
-#                    print_error("Skipping read test for %s"%(t,))
-#                    contiue
-#                if t.read_test:
-#                     rc=execute_command(t.read_test)
-#                     if rc:
-#                         print_error("Failed read test %s"%(t,))
-#                         continue
-#                if t.remove_test:
-#                    rc = execute_command(t.remove_test)
-#                    if rc:
-#                        print_error("Failed remove test %s"%(t,))
-#                        continue
-#                print_message("SUCCESS for %s"%(t,))
-#            else:
-#                print_message("SKIPPED for %s"%(t,))
-#            os.unlink("/tmp/"+t.fname)
-#
+            report[t] = { 'rc' : rc,
+                          'error' : t.error }
 
 if __name__ == "__main__":
+
+    manager = multiprocessing.Manager()
+    report = manager.dict()
 
     SYSTEM  = "dmsdca06"
     try:
@@ -114,7 +97,7 @@ if __name__ == "__main__":
     workers = []
 
     for i in range(cpu_count):
-        worker = Worker(queue)
+        worker = Worker(queue,report)
         workers.append(worker)
         worker.start()
 
@@ -130,6 +113,7 @@ if __name__ == "__main__":
         worker.join()
 
     print_message("Finish")
+    #pp = pprint.PrettyPrinter(indent=4)
 
 
 

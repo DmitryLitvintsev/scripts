@@ -1,0 +1,1 @@
+select inode2path(tt.ipnfsid),encode(tti.ivalue,'escape') from t_tags tt, t_tags_inodes tti where tti.itagid=tt.itagid and tt.itagname='file_family' and encode(tti.ivalue,'escape') like 'scratch%'

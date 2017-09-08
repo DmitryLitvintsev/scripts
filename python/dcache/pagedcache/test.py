@@ -30,6 +30,7 @@
 import copy
 import os
 import uuid
+import signal
 import subprocess
 import threading
 
@@ -45,7 +46,7 @@ class Test(object):
         family = protocol = dictionary.get("protocol").get("family")
         self.ro = False
         self.name = name
-        self.path = "/pnfs/com/usr/eagle/dcache-tests/scratch"
+        self.path = "/pnfs/fnal.gov/usr/eagle/dcache-tests/scratch"
         self.input_filename = "pd_"+family+"_"+str(uuid.uuid4())
         self.output_filename = "pd"+str(uuid.uuid4())
         for key, value in dictionary.get("interfaces").iteritems():
@@ -65,7 +66,7 @@ class Test(object):
 
 
     def run(self):
-        fail = 0
+        fail=0
         try:
             createFile(self.input_filename,104857600)
             for t in (self.write_test,self.read_test):
@@ -86,9 +87,11 @@ class Test(object):
                 if rc != 0 :
                     rc = 1
                     fail |= rc
-                    continue
+                    return fail
         except Exception, e:
             fail = 1
+            self.error += str(e)
+            pass
         finally:
             """
             remove local and remote files vis FS interface
@@ -140,13 +143,14 @@ class KerberosFtp(Test):
     def __init__(self,name,dictionary):
         Test.__init__(self,name,dictionary)
         self.subpath = "dcache-tests/scratch"
-        self.write_test = "echo 'pagedcache\nput /tmp/%s %s/%s' | /usr/krb5/bin/ftp %s %s"%(self.input_filename,
+
+        self.write_test = "echo 'pagedcache\nput /tmp/%s %s/%s' | timeout 60 /usr/krb5/bin/ftp %s %s"%(self.input_filename,
                                                                                             self.subpath,
                                                                                             self.input_filename,
                                                                                             self.fqdn,
                                                                                             self.port)
 
-        self.read_test = "echo 'pagedcache\nget %s/%s /tmp/%s'| /usr/krb5/bin/ftp %s %s"%(self.subpath,
+        self.read_test = "echo 'pagedcache\nget %s/%s /tmp/%s'| timeout 60 /usr/krb5/bin/ftp %s %s"%(self.subpath,
                                                                                           self.input_filename,
                                                                                           self.output_filename,
                                                                                           self.fqdn,
@@ -177,10 +181,13 @@ class WeakFtp(Test):
                                        open(output_file_name, "wb").write)
             ftp.quit()
         except all_errors,e:
-            self.errpr = str(e)
+            self.error = str(e)
             return 1
         finally:
-            os.unlink(output_file_name)
+            try:
+                os.unlink(output_file_name)
+            except:
+                pass
         return 0
 
 class PlainDcap(Test):
@@ -198,7 +205,7 @@ class PlainDcap(Test):
             del os.environ["DCACHE_IO_TUNNEL"]
         except:
             pass
-        super(PlainDcap,self).run()
+        return super(PlainDcap,self).run()
 
 class KerberosDcap(Test):
     def __init__(self,name,dictionary):
@@ -215,7 +222,7 @@ class KerberosDcap(Test):
 
     def run(self):
         os.environ["DCACHE_IO_TUNNEL"] = "/usr/lib64/dcap/libgssTunnel.so"
-        super(KerberosDcap,self).run()
+        return super(KerberosDcap,self).run()
 
 class GsiDcap(Test):
     def __init__(self,name,dictionary):
@@ -233,7 +240,7 @@ class GsiDcap(Test):
 
     def run(self):
         os.environ["DCACHE_IO_TUNNEL"] = "/usr/lib64/dcap/libgsiTunnel.so"
-        super(GsiDcap,self).run()
+        return super(GsiDcap,self).run()
 
 
 class Https(Test):
@@ -373,6 +380,7 @@ class Nfs(Test):
                 os.unlink(os.path.join(self.path,self.input_filename))
             except:
                 pass
+        return 0
 
 
 
