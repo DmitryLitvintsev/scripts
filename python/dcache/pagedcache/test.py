@@ -84,7 +84,15 @@ class Test(object):
                 finally:
                     timer.cancel()
                 rc=p.returncode
-                if rc != 0 :
+                """
+                kerberos ftp client does not return non-zero on
+                failure, so check write destination file for existence
+                """
+                remote_file_exists = os.path.exists(os.path.join(self.path,self.input_filename))
+                if not remote_file_exists:
+                    self.error += "Remote file does not exist, write test failed"
+                    rc = 1
+                if rc != 0:
                     rc = 1
                     fail |= rc
                     return fail
@@ -144,18 +152,41 @@ class KerberosFtp(Test):
         Test.__init__(self,name,dictionary)
         self.subpath = "dcache-tests/scratch"
 
-        self.write_test = "echo 'pagedcache\nput /tmp/%s %s/%s' | timeout 60 /usr/krb5/bin/ftp %s %s"%(self.input_filename,
-                                                                                            self.subpath,
-                                                                                            self.input_filename,
-                                                                                            self.fqdn,
-                                                                                            self.port)
+        self.write_test = """
+        timeout 30 ftp -n %s %s << EOF
+        quote USER pagedcache
+        put /tmp/%s %s/%s
+        quit\nEOF
+        """%(self.fqdn,
+             self.port,
+             self.input_filename,
+             self.subpath,
+             self.input_filename)
 
-        self.read_test = "echo 'pagedcache\nget %s/%s /tmp/%s'| timeout 60 /usr/krb5/bin/ftp %s %s"%(self.subpath,
-                                                                                          self.input_filename,
-                                                                                          self.output_filename,
-                                                                                          self.fqdn,
-                                                                                          self.port)
+        self.read_test = """
+        timeout 30 ftp -n %s %s << EOF
+        quote USER pagedcache
+        get %s/%s /tmp/%s
+        quit\nEOF
+        """%(self.fqdn,
+             self.port,
+             self.subpath,
+             self.input_filename,
+             self.input_filename+"KFTP")
 
+#        self.write_test = "echo 'pagedcache\nput /tmp/%s %s/%s' | timeout 60 /usr/krb5/bin/ftp %s %s"%(self.input_filename,
+#                                                                                            self.subpath,
+#                                                                                            self.input_filename,
+#                                                                                            self.fqdn,
+#                                                                                            self.port)
+#
+#        self.read_test = "echo 'pagedcache\nget %s/%s /tmp/%s'| timeout 60 /usr/krb5/bin/ftp %s %s"%(self.subpath,
+#                                                                                          self.input_filename,
+#                                                                                          self.output_filename,
+#                                                                                          self.fqdn,
+#                                                                                          self.port)
+
+#
 #        self.remove_test = "echo 'pagedcache\ndel %s/%s ' | /usr/krb5/bin/ftp %s %s"%(self.path,
 #                                                                                      self.input_filename,
 #                                                                                      self.fqdn,
