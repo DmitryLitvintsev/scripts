@@ -14,11 +14,12 @@
 
 """
 
+import multiprocessing
+import os
 import signal
 import smtplib
-import time
-import os
 import sys
+import time
 
 import psycopg2
 
@@ -51,12 +52,25 @@ def send_mail(subject, message):
            ""] + [message]
     return smtplib.SMTP('localhost').sendmail(from_addr, [to_addr], '\n'.join(msg))
 
+printLock = multiprocessing.Lock()
+
 def wrapper(func,args=()):
-    t1=time.time()
+    dt=-time.time()
     res = func(args)
-    t2=time.time()
-    print_message("Took %3.2f seconds to execute %s, on %s, result %s"%(t2-t1,func.__name__, str(args), str(res)))
+    dt+=time.time()
+    with printLock:
+        print_message("Took %3.2f seconds to execute %s, on %s, result %s"%(dt,func.__name__, str(args), str(res)))
     return res
+
+class Worker(multiprocessing.Process):
+    def __init__(self,queue):
+        super(Worker,self).__init__()
+        self.queue = queue
+
+    def run(self):
+        for data in iter(self.queue.get,None):
+            path = data
+            f_stat = wrapper(os.stat,(path))
 
 if __name__ == "__main__":
     timeout = 10
@@ -70,34 +84,50 @@ if __name__ == "__main__":
                                port     = 5432,
                                user     = 'enstore')
         cursor = con.cursor()
-        query_time=time.time()
+        query_time=-time.time()
+        """
+        get random PNFSID
+        """
         cursor.execute(GET_RANDOM_PNFSID)
         res = cursor.fetchall()
-        query_time = time.time() - query_time
-        stat_time = time.time()
-        if res and len(res) > 0 :
-            cursor.execute(GET_PATH.format(res[0][0]))
-            pres = cursor.fetchall()
-            if pres and len(pres) > 0:
-                path = pres[0][0]
-                signal.signal(signal.SIGALRM, signal_handler)
-                signal.alarm(timeout)
-                try:
-                    f_stat = wrapper(os.stat,(path))
-                except Exception as e :
-                    if str(e) == "TIMEDOUT":
-                        send_mail("NFS SERVER TIMEOUT", "Timed out after %3.2f seconds, query time %3.2f on %s"%(time.time()-stat_time,
-                                                                                                                               query_time, path))
-                        send_mail("RESTARTING NFS SERVER ", "Timed out after %d seconds on %s"%(timeout, path))
-                        rc=os.system("dcache dump threads nfsDomain")
-                        rc=os.system("dcache restart nfsDomain")
-                        if rc :
-                            send_mail("FAILED RESTARTING NFS SERVER", "FAILED RESTARTING NFS SERVER")
-    except Exception as e:
-        print_error(str(e))
-        pass
+        query_time += time.time()
+        if not res :
+            raise Exception("Failed to find random pnfsid")
+
+        """
+        convert PNFSID to path
+        """
+        cursor.execute(GET_PATH.format(res[0][0]))
+        pres = cursor.fetchall()
+        if not pres :
+            raise Exception("Failed to get path for pnfsid={}".format(res[0][0]))
+
+        path = pres[0][0]
+        signal.signal(signal.SIGALRM, signal_handler)
+        signal.alarm(timeout)
+
+        stat_time = -time.time()
+        workers = []
+        queue = multiprocessing.Queue(2)
+        worker = Worker(queue);
+        workers.append(worker)
+        worker.start()
+        queue.put(path)
+        queue.put(None)
+        sys.exit(0)
+    except Exception as e :
+        t, v, tb = sys.exc_info()
+#        if str(e) == "TIMEDOUT":
+#            send_mail("NFS SERVER TIMEOUT", "Timed out after %3.2f seconds, query time %3.2f on %s"%(time.time()+stat_time,
+#                                                                                                     query_time, path))
+#            send_mail("RESTARTING NFS SERVER ", "Timed out after %d seconds on %s"%(timeout, path))
+#            rc=os.system("dcache dump threads nfsDomain")
+#            rc=os.system("dcache restart nfsDomain")
+#            if rc :
+#                send_mail("FAILED RESTARTING NFS SERVER", "FAILED RESTARTING NFS SERVER")
+#        else:
+#            print_error("Exception occured {}".format(str(e)))
+        sys.exit(1)
     finally:
-        if cursor : cursor.close()
-        if con : con.close()
-
-
+        map(lambda x: x.join(), workers)
+        if con: con.close()
