@@ -1,17 +1,24 @@
+#!/usr/bin/env python
+
 import json
 import multiprocessing
 import os
-import urllib2
 import StringIO
+import signal
 import socket
 import subprocess
 import sys
 import time
+import urllib2
 
 import test
 import pprint
 
+
 printLock = multiprocessing.Lock()
+
+def signal_handler(signum, frame):
+    raise Exception("TIMEDOUT")
 
 def print_error(text):
     with printLock:
@@ -96,23 +103,30 @@ if __name__ == "__main__":
     cpu_count = multiprocessing.cpu_count()
     workers = []
 
-    for i in range(cpu_count):
-        worker = Worker(queue,report)
-        workers.append(worker)
-        worker.start()
+    try:
+        signal.signal(signal.SIGALRM, signal_handler)
+        signal.alarm(120)
 
-    for name, value in data.iteritems():
-        t = test.createTest(name,value)
-        if not t : continue
-        queue.put(t)
+        for i in range(cpu_count):
+            worker = Worker(queue,report)
+            workers.append(worker)
+            worker.start()
 
-    for i in range(cpu_count):
-        queue.put(None)
+        for name, value in data.iteritems():
+            t = test.createTest(name,value)
+            if not t : continue
+            queue.put(t)
 
-    for worker in workers:
-        worker.join()
-
-    print_message("Finish")
+        for i in range(cpu_count):
+            queue.put(None)
+    except Exception as e:
+        t, v, tb = sys.exc_info()
+        if str(e) == "TIMEDOUT":
+            print_error("Timed out")
+            sys.exit(1)
+    finally:
+        map(lambda x : x.join(), workers)
+        print_message("Finish")
     #pp = pprint.PrettyPrinter(indent=4)
 
 
