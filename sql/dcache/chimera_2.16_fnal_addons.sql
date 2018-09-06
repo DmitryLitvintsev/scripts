@@ -133,11 +133,10 @@ CREATE TRIGGER tgr_push_tag AFTER UPDATE ON t_tags FOR EACH ROW EXECUTE PROCEDUR
 -- Name: f_create_tag(character varying, character varying); Type: FUNCTION; Schema: public; Owner: enstore
 --
 
-CREATE OR REPLACE FUNCTION f_create_tag(root character varying, tag character varying) RETURNS void
+CREATE OR REPLACE FUNCTION f_create_tag(rootid bigint, tag character varying) RETURNS void
     LANGUAGE plpgsql
-    AS $_$
+    AS $$
 DECLARE
-       rootid bigint := pnfsid2inumber(root);
        isorig integer;
        tagid bigint;
        node bigint;
@@ -150,17 +149,57 @@ BEGIN
            SELECT t_inodes.inumber FROM t_inodes, t_dirs
            WHERE  t_inodes.itype=16384
            AND    t_dirs.iparent=rootid
-           AND    t_inodes.inumber=t_dirs.child
+           AND    t_inodes.inumber=t_dirs.ichild
            AND    t_dirs.iname NOT IN ('.', '..') loop
            BEGIN
 	       INSERT INTO t_tags (inumber, itagname, itagid, isorign) VALUES (node, tag, tagid, 0);
+	       EXCEPTION WHEN unique_violation THEN
+	       --- do nothing ---
+	       --- RAISE NOTICE 'Already exist % %',  inumber, itagname;
+	       CONTINUE;
 	   END;
 	      PERFORM f_create_tag(node, tag);
        END loop;
 END;
-$_$;
+$$;
 
-ALTER FUNCTION public.f_create_tag(character varying, character varying) OWNER TO enstore;
+ALTER FUNCTION public.f_create_tag(bigint, character varying) OWNER TO enstore;
+
+--
+-- Name: f_create_tag(character varying, character varying); Type: FUNCTION; Schema: public; Owner: enstore
+--
+
+CREATE OR REPLACE FUNCTION f_delete_tag(rootid bigint, tag character varying) RETURNS void
+    LANGUAGE plpgsql
+    AS $$
+DECLARE
+       isorig integer;
+       tagid bigint;
+       node bigint;
+       children RECORD;
+BEGIN
+
+      DELETE FROM t_tags
+      WHERE inumber = rootid
+      AND   itagname = tag;
+
+       FOR node IN
+           SELECT t_inodes.inumber FROM t_inodes, t_dirs
+           WHERE  t_inodes.itype=16384
+           AND    t_dirs.iparent=rootid
+           AND    t_inodes.inumber=t_dirs.ichild
+           AND    t_dirs.iname NOT IN ('.', '..') loop
+           BEGIN
+	       DELETE FROM t_tags
+                   WHERE inumber = node
+                   AND   itagname = tag;
+	      PERFORM f_delete_tag(node, tag);
+	   END;
+       END loop;
+END;
+$$;
+
+ALTER FUNCTION public.f_delete_tag(bigint, character varying) OWNER TO enstore;
 
 --
 -- Name: f_dir_size(character varying); Type: FUNCTION; Schema: public; Owner: enstore
