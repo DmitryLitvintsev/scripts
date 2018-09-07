@@ -279,7 +279,7 @@ class Https(Test):
         Test.__init__(self,name,dictionary)
         root = dictionary.get("protocol").get("root")
 
-        self.subpath=self.path[len(root)+1:]
+        self.subpath=self.path[len(root):]
 
         self.write_test = """
         curl --cert ${X509_USER_PROXY}  --key ${X509_USER_PROXY} \
