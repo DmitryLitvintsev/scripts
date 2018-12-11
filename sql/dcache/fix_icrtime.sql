@@ -1,0 +1,1 @@
+alter table t_inodes alter column icrtime TYPE timestamp with time zone;
