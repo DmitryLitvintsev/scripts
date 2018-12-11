@@ -117,16 +117,16 @@ if __name__ == "__main__":
         sys.exit(0)
     except Exception as e :
         t, v, tb = sys.exc_info()
-#        if str(e) == "TIMEDOUT":
-#            send_mail("NFS SERVER TIMEOUT", "Timed out after %3.2f seconds, query time %3.2f on %s"%(time.time()+stat_time,
-#                                                                                                     query_time, path))
-#            send_mail("RESTARTING NFS SERVER ", "Timed out after %d seconds on %s"%(timeout, path))
-#            rc=os.system("dcache dump threads nfsDomain")
-#            rc=os.system("dcache restart nfsDomain")
-#            if rc :
-#                send_mail("FAILED RESTARTING NFS SERVER", "FAILED RESTARTING NFS SERVER")
-#        else:
-#            print_error("Exception occured {}".format(str(e)))
+        if str(e) == "TIMEDOUT":
+            send_mail("NFS SERVER TIMEOUT", "Timed out after %3.2f seconds, query time %3.2f on %s"%(time.time()+stat_time,
+                                                                                                     query_time, path))
+            send_mail("RESTARTING NFS SERVER ", "Timed out after %d seconds on %s"%(timeout, path))
+            rc=os.system("dcache dump threads nfsDomain")
+            rc=os.system("dcache restart nfsDomain")
+            if rc :
+                send_mail("FAILED RESTARTING NFS SERVER", "FAILED RESTARTING NFS SERVER")
+        else:
+            print_error("Exception occured {}".format(str(e)))
         sys.exit(1)
     finally:
         map(lambda x: x.join(), workers)
