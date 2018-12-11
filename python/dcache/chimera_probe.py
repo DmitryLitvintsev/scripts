@@ -106,7 +106,7 @@ if __name__ == "__main__":
         signal.signal(signal.SIGALRM, signal_handler)
         signal.alarm(timeout)
 
-        stat_time = -time.time()
+        stat_time = time.time()
         workers = []
         queue = multiprocessing.Queue(2)
         worker = Worker(queue);
@@ -118,7 +118,7 @@ if __name__ == "__main__":
     except Exception as e :
         t, v, tb = sys.exc_info()
         if str(e) == "TIMEDOUT":
-            send_mail("NFS SERVER TIMEOUT", "Timed out after %3.2f seconds, query time %3.2f on %s"%(time.time()+stat_time,
+            send_mail("NFS SERVER TIMEOUT", "Timed out after %3.2f seconds, query time %3.2f on %s"%(time.time()-stat_time,
                                                                                                      query_time, path))
             send_mail("RESTARTING NFS SERVER ", "Timed out after %d seconds on %s"%(timeout, path))
             rc=os.system("dcache dump threads nfsDomain")
