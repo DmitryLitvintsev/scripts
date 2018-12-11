@@ -28,7 +28,7 @@ select ipnfsid from t_inodes where itype=32768 OFFSET random()*10000 LIMIT 1
 """
 
 GET_PATH="""
-select inode2path('{}')
+select inode2path(%s)
 """
 
 def print_message(text):
@@ -78,6 +78,7 @@ if __name__ == "__main__":
         timeout = int(sys.argv[1])
     con = None
     cursor = None
+    workers = []
     try:
         con = psycopg2.connect(host     = 'localhost',
                                database = 'chimera',
@@ -97,17 +98,15 @@ if __name__ == "__main__":
         """
         convert PNFSID to path
         """
-        cursor.execute(GET_PATH.format(res[0][0]))
+        cursor.execute(GET_PATH,res[0])
         pres = cursor.fetchall()
         if not pres :
             raise Exception("Failed to get path for pnfsid={}".format(res[0][0]))
-
         path = pres[0][0]
         signal.signal(signal.SIGALRM, signal_handler)
         signal.alarm(timeout)
 
         stat_time = time.time()
-        workers = []
         queue = multiprocessing.Queue(2)
         worker = Worker(queue);
         workers.append(worker)
@@ -115,19 +114,19 @@ if __name__ == "__main__":
         queue.put(path)
         queue.put(None)
         sys.exit(0)
-    except Exception as e :
+    except Exception as e:
         t, v, tb = sys.exc_info()
         if str(e) == "TIMEDOUT":
             send_mail("NFS SERVER TIMEOUT", "Timed out after %3.2f seconds, query time %3.2f on %s"%(time.time()-stat_time,
                                                                                                      query_time, path))
             send_mail("RESTARTING NFS SERVER ", "Timed out after %d seconds on %s"%(timeout, path))
+            map(lambda x: x.terminate(), workers)
             rc=os.system("dcache dump threads nfsDomain")
             rc=os.system("dcache restart nfsDomain")
-            if rc :
-                send_mail("FAILED RESTARTING NFS SERVER", "FAILED RESTARTING NFS SERVER")
+            sys.exit(1)
         else:
             print_error("Exception occured {}".format(str(e)))
-        sys.exit(1)
+            sys.exit(1)
     finally:
         map(lambda x: x.join(), workers)
         if con: con.close()
