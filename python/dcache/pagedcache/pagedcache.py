@@ -17,9 +17,6 @@ import pprint
 
 printLock = multiprocessing.Lock()
 
-def signal_handler(signum, frame):
-    raise Exception("TIMEDOUT")
-
 def print_error(text):
     with printLock:
         sys.stderr.write(time.strftime("%Y-%m-%d %H:%M:%S",time.localtime(time.time()))+" : " +text+"\n")
@@ -104,9 +101,6 @@ if __name__ == "__main__":
     workers = []
 
     try:
-        signal.signal(signal.SIGALRM, signal_handler)
-        signal.alarm(120)
-
         for i in range(cpu_count):
             worker = Worker(queue,report)
             workers.append(worker)
@@ -125,7 +119,7 @@ if __name__ == "__main__":
             print_error("Timed out")
             sys.exit(1)
     finally:
-        map(lambda x : x.join(), workers)
+        map(lambda x : x.join(120), workers)
         print_message("Finish")
     #pp = pprint.PrettyPrinter(indent=4)
 

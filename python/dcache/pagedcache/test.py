@@ -34,6 +34,9 @@ import signal
 import subprocess
 import threading
 
+def signal_handler(signum, frame):
+    raise Exception("TIMEDOUT")
+
 def createFile(name, size):
     f = open("/tmp/"+name,"wb")
     f.seek(size - 1)
@@ -68,6 +71,8 @@ class Test(object):
     def run(self):
         fail=0
         try:
+            signal.signal(signal.SIGALRM, signal_handler)
+            signal.alarm(120)
             createFile(self.input_filename,104857600)
             for t in (self.write_test,self.read_test):
                 if not t:
@@ -278,7 +283,7 @@ class Https(Test):
     def __init__(self,name,dictionary):
         Test.__init__(self,name,dictionary)
         root = dictionary.get("protocol").get("root")
-
+        
         self.subpath=self.path[len(root):]
 
         self.write_test = """
