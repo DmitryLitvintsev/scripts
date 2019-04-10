@@ -177,25 +177,7 @@ class KerberosFtp(Test):
              self.port,
              self.subpath,
              self.input_filename,
-             self.input_filename+"KFTP")
-
-#        self.write_test = "echo 'pagedcache\nput /tmp/%s %s/%s' | timeout 60 /usr/krb5/bin/ftp %s %s"%(self.input_filename,
-#                                                                                            self.subpath,
-#                                                                                            self.input_filename,
-#                                                                                            self.fqdn,
-#                                                                                            self.port)
-#
-#        self.read_test = "echo 'pagedcache\nget %s/%s /tmp/%s'| timeout 60 /usr/krb5/bin/ftp %s %s"%(self.subpath,
-#                                                                                          self.input_filename,
-#                                                                                          self.output_filename,
-#                                                                                          self.fqdn,
-#                                                                                          self.port)
-
-#
-#        self.remove_test = "echo 'pagedcache\ndel %s/%s ' | /usr/krb5/bin/ftp %s %s"%(self.path,
-#                                                                                      self.input_filename,
-#                                                                                      self.fqdn,
-#                                                                                      self.port)
+             self.input_filename)
 
 from ftplib import FTP
 from ftplib import all_errors

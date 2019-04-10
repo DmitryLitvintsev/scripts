@@ -78,7 +78,7 @@ if __name__ == "__main__":
     os.environ["X509_USER_KEY"] = "/etc/grid-security/hostkey.pem"
     os.environ["X509_USER_CERT"] = "/etc/grid-security/hostcert.pem"
     os.environ["X509_CERT_DIR"] = "/etc/grid-security/certificates"
-    os.environ["X509_USER_PROXY"] =  "/tmp/pagedcache/x509up_pagedcache"
+    os.environ["X509_USER_PROXY"] = "/tmp/x509up_pagedcache"
 
     rc=execute_command("grid-proxy-init")
     if rc :
