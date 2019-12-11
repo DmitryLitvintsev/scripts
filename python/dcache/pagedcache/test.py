@@ -30,6 +30,7 @@
 import copy
 import os
 import uuid
+import socket
 import signal
 import subprocess
 import threading
@@ -50,10 +51,18 @@ class Test(object):
         self.ro = False
         self.name = name
         self.path = "/pnfs/fnal.gov/usr/eagle/dcache-tests/scratch"
+        #self.path = "/pnfs/fs/usr/cms/WAX/11/store/litvinse/dcache-tests"
+        self.root_path = dictionary.get("protocol").get("root","/")
+        s = self.path.find(self.root_path)
+        e = len(self.root_path)
+        self.subpath = self.path[e:]
+        if not self.subpath.startswith("/"):
+            self.subpath = "/" + self.subpath
         self.input_filename = "pd_"+family+"_"+str(uuid.uuid4())
         self.output_filename = "pd"+str(uuid.uuid4())
         for key, value in dictionary.get("interfaces").iteritems():
-            self.fqdn = value.get("FQDN")
+            if value.get("scope") != "global": continue
+            self.fqdn = socket.gethostbyaddr(value.get("address"))[0]
 
         self.error, self.output = "",""
 
@@ -132,7 +141,6 @@ class Test(object):
 class GsiFtp(Test):
     def __init__(self,name,dictionary):
         Test.__init__(self,name,dictionary)
-        self.subpath = "dcache-tests/scratch"
 
         self.write_test = "globus-url-copy -p 2 file:////tmp/%s gsiftp://%s:%s/%s/%s"%(self.input_filename,
                                                                                        self.fqdn,
@@ -155,7 +163,6 @@ class GsiFtp(Test):
 class KerberosFtp(Test):
     def __init__(self,name,dictionary):
         Test.__init__(self,name,dictionary)
-        self.subpath = "dcache-tests/scratch"
 
         self.write_test = """
         timeout 30 ftp -n %s %s << EOF
@@ -216,7 +223,7 @@ class PlainDcap(Test):
         self.output_filename = self.input_filename+"_"+str(uuid.uuid4())
         self.read_test = "dccp dcap://%s:%s/%s /tmp/%s"%(self.fqdn,
                                                          self.port,
-                                                         os.path.join(self.path,self.input_filename),
+                                                         os.path.join(self.subpath,self.input_filename),
                                                          self.output_filename,)
     def run(self):
         try :
@@ -231,11 +238,11 @@ class KerberosDcap(Test):
         self.write_test = "dccp /tmp/%s dcap://%s:%s/%s"%(self.input_filename,
                                                           self.fqdn,
                                                           self.port,
-                                                          os.path.join(self.path,self.input_filename),)
+                                                          os.path.join(self.subpath,self.input_filename),)
 
         self.read_test = "dccp dcap://%s:%s/%s /tmp/%s"%(self.fqdn,
                                                          self.port,
-                                                         os.path.join(self.path,self.input_filename),
+                                                         os.path.join(self.subpath,self.input_filename),
                                                          self.output_filename,)
 
     def run(self):
@@ -249,11 +256,11 @@ class GsiDcap(Test):
         self.write_test = "dccp /tmp/%s dcap://%s:%s/%s"%(self.input_filename,
                                                           self.fqdn,
                                                           self.port,
-                                                          os.path.join(self.path,self.input_filename),)
+                                                          os.path.join(self.subpath,self.input_filename),)
 
         self.read_test = "dccp dcap://%s:%s/%s /tmp/%s"%(self.fqdn,
                                                          self.port,
-                                                         os.path.join(self.path,self.input_filename),
+                                                         os.path.join(self.subpath,self.input_filename),
                                                          self.output_filename,)
 
     def run(self):
@@ -264,9 +271,6 @@ class GsiDcap(Test):
 class Https(Test):
     def __init__(self,name,dictionary):
         Test.__init__(self,name,dictionary)
-        root = dictionary.get("protocol").get("root")
-        
-        self.subpath=self.path[len(root):]
 
         self.write_test = """
         curl --cert ${X509_USER_PROXY}  --key ${X509_USER_PROXY} \
@@ -299,7 +303,7 @@ class Http(Test):
         curl -L http://%s:%s/%s -o /tmp/%s
         """%(self.fqdn,
              self.port,
-             os.path.join(self.path,self.input_filename),
+             os.path.join(self.subpath,self.input_filename),
              self.output_filename)
 
 
@@ -311,13 +315,13 @@ class GsiXrootd(Test):
         """%(self.input_filename,
              self.fqdn,
              self.port,
-             os.path.join(self.path,self.input_filename),)
+             os.path.join(self.subpath,self.input_filename),)
 
         self.read_test = """
         xrdcp root://%s:%s/%s /tmp/%s
         """%(self.fqdn,
              self.port,
-             os.path.join(self.path,self.input_filename),
+             os.path.join(self.subpath,self.input_filename),
              self.output_filename)
 
 #        self.remove_test = """
@@ -336,23 +340,22 @@ class PlainXrootd(Test):
         xrdcp root://%s:%s/%s /tmp/%s
         """%(self.fqdn,
              self.port,
-             os.path.join(self.path,self.input_filename),
+             os.path.join(self.subpath,self.input_filename),
              self.output_filename)
 
 
 class Srm(Test):
     def __init__(self,name,dictionary):
         Test.__init__(self,name,dictionary)
-
         self.write_test = "srmcp  file:////tmp/%s srm://%s:%s/%s/%s"%(self.input_filename,
                                                                       self.fqdn,
                                                                       self.port,
-                                                                      self.path,
+                                                                      self.subpath,
                                                                       self.input_filename)
 
         self.read_test = "srmcp srm://%s:%s/%s/%s file:////tmp/%s"%(self.fqdn,
                                                                     self.port,
-                                                                    self.path,
+                                                                    self.subpath,
                                                                     self.input_filename,
                                                                     self.output_filename)
 
@@ -374,9 +377,9 @@ class Nfs(Test):
             createFile(self.input_filename,104857600)
 
             shutil.copyfile(os.path.join("/tmp",self.input_filename),
-                            os.path.join(self.path,self.input_filename))
+                            os.path.join(self.subpath,self.input_filename))
 
-            shutil.copyfile(os.path.join(self.path,self.input_filename),
+            shutil.copyfile(os.path.join(self.subpath,self.input_filename),
                             os.path.join("/tmp",self.output_filename))
 
         except Exception, e:
@@ -395,7 +398,7 @@ class Nfs(Test):
                 pass
 
             try:
-                os.unlink(os.path.join(self.path,self.input_filename))
+                os.unlink(os.path.join(self.subpath,self.input_filename))
             except:
                 pass
         return 0
@@ -431,6 +434,10 @@ def createTest(name,dictionary):
         return Srm(name,dictionary)
     elif family == "root":
         port = dictionary.get("port")
+#        if port == 1094: 
+#            return GsiXrootd(name,dictionary)
+#        else:
+#            return None
         if port == 1094:
             return GsiXrootd(name,dictionary)
         else:

@@ -19,17 +19,24 @@ printLock = multiprocessing.Lock()
 
 def print_error(text):
     with printLock:
-        sys.stderr.write(time.strftime("%Y-%m-%d %H:%M:%S",time.localtime(time.time()))+" : " +text+"\n")
+        sys.stderr.write(time.strftime(
+            "%Y-%m-%d %H:%M:%S",
+            time.localtime(time.time()))+" : " +text+"\n")
         sys.stderr.flush()
 
 
 def print_message(text):
     with printLock:
-        sys.stdout.write(time.strftime("%Y-%m-%d %H:%M:%S",time.localtime(time.time()))+" : " +text+"\n")
+        sys.stdout.write(time.strftime(
+            "%Y-%m-%d %H:%M:%S",
+            time.localtime(time.time()))+" : " +text+"\n")
         sys.stdout.flush()
 
 def execute_command(cmd):
-    p = subprocess.Popen(cmd,stdout=subprocess.PIPE,stderr=subprocess.PIPE,shell=True)
+    p = subprocess.Popen(cmd,
+                         stdout=subprocess.PIPE,
+                         stderr=subprocess.PIPE,
+                         shell=True)
     output, errors = p.communicate()
     rc=p.returncode
     if rc:
@@ -94,7 +101,6 @@ if __name__ == "__main__":
     if rc :
         print_error("Failed to create kerberos ticket")
         sys.exit(1)
-
 
     queue = multiprocessing.Queue(100)
     cpu_count = multiprocessing.cpu_count()
