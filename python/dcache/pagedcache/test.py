@@ -41,7 +41,7 @@ def signal_handler(signum, frame):
 def createFile(name, size):
     f = open("/tmp/"+name,"wb")
     f.seek(size - 1)
-    f.write("\0")
+    f.write("\0".encode())
     f.close()
 
 class Test(object):
@@ -50,8 +50,11 @@ class Test(object):
         family = protocol = dictionary.get("protocol").get("family")
         self.ro = False
         self.name = name
+        """
+        Absolute path to test directory
+        """
         self.path = "/pnfs/fnal.gov/usr/eagle/dcache-tests/scratch"
-        #self.path = "/pnfs/fs/usr/cms/WAX/11/store/litvinse/dcache-tests"
+        #self.path = "/dcache/uscmsdisk/store/test/litvinse/dcache-tests"
         self.root_path = dictionary.get("protocol").get("root","/")
         s = self.path.find(self.root_path)
         e = len(self.root_path)
@@ -60,7 +63,7 @@ class Test(object):
             self.subpath = "/" + self.subpath
         self.input_filename = "pd_"+family+"_"+str(uuid.uuid4())
         self.output_filename = "pd"+str(uuid.uuid4())
-        for key, value in dictionary.get("interfaces").iteritems():
+        for key, value in dictionary.get("interfaces").items():
             if value.get("scope") != "global": continue
             self.fqdn = socket.gethostbyaddr(value.get("address"))[0]
 
@@ -92,9 +95,9 @@ class Test(object):
                     timer.start()
                     output, error = p.communicate()
                     if output:
-                        self.output += output
+                        self.output += str(output)
                     if error:
-                        self.error += error
+                        self.error += str(error)
                 finally:
                     timer.cancel()
                 rc=p.returncode
@@ -110,7 +113,7 @@ class Test(object):
                     rc = 1
                     fail |= rc
                     return fail
-        except Exception, e:
+        except Exception as e:
             fail = 1
             self.error += str(e)
             pass
@@ -205,7 +208,7 @@ class WeakFtp(Test):
             self.output=ftp.retrbinary("RETR " + os.path.join(self.subpath,self.input_filename),
                                        open(output_file_name, "wb").write)
             ftp.quit()
-        except all_errors,e:
+        except all_errors as e:
             self.error = str(e)
             return 1
         finally:
@@ -382,7 +385,7 @@ class Nfs(Test):
             shutil.copyfile(os.path.join(self.subpath,self.input_filename),
                             os.path.join("/tmp",self.output_filename))
 
-        except Exception, e:
+        except Exception as e:
             self.error = str(e)
             return 1
         finally:
@@ -434,16 +437,16 @@ def createTest(name,dictionary):
         return Srm(name,dictionary)
     elif family == "root":
         port = dictionary.get("port")
-#        if port == 1094: 
-#            return GsiXrootd(name,dictionary)
-#        else:
-#            return None
+        #if port == 1094:
+        #    return GsiXrootd(name,dictionary)
+        #else:
+        #    return None
         if port == 1094:
             return GsiXrootd(name,dictionary)
         else:
             return PlainXrootd(name,dictionary)
     else:
-        print "Protocol %s is not supported"%(family,)
+        print("Protocol %s is not supported"%(family,))
         return None
 
 

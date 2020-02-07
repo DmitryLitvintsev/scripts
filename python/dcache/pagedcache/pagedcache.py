@@ -3,13 +3,17 @@
 import json
 import multiprocessing
 import os
-import StringIO
 import signal
 import socket
 import subprocess
 import sys
 import time
-import urllib2
+
+try:
+    from urllib2 import Request, urlopen
+except:
+    from  urllib.request import Request, urlopen
+    pass
 
 import test
 import pprint
@@ -54,7 +58,7 @@ class Worker(multiprocessing.Process):
         for t in iter(self.queue.get, None):
             rc = t.run()
             if rc :
-                print_message("FAILURE for %s \n %s"%(t,t.error))
+                print_message("FAILURE for %s \n %s"%(t,str(t.error)))
             else:
                 print_message("SUCCESS for %s"%(t,))
             report[t] = { 'rc' : rc,
@@ -73,9 +77,9 @@ if __name__ == "__main__":
 
     url = "http://%s:2288/info/doors?format=json"%(SYSTEM,)
 
-    request = urllib2.Request(url)
+    request = Request(url)
     request.add_header("Accept","application/json")
-    response = urllib2.urlopen(request)
+    response = urlopen(request)
     data = json.load(response)
 
     """
@@ -112,7 +116,7 @@ if __name__ == "__main__":
             workers.append(worker)
             worker.start()
 
-        for name, value in data.iteritems():
+        for name, value in data.items():
             t = test.createTest(name,value)
             if not t : continue
             queue.put(t)
@@ -125,7 +129,7 @@ if __name__ == "__main__":
             print_error("Timed out")
             sys.exit(1)
     finally:
-        map(lambda x : x.join(120), workers)
+        list(map(lambda x : x.join(120), workers))
         print_message("Finish")
     #pp = pprint.PrettyPrinter(indent=4)
 
