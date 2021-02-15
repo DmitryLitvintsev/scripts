@@ -26,6 +26,27 @@ except ImportError:
 printLock = multiprocessing.Lock()
 
 
+"""
+-- DROP TABLE IF EXISTS file_migrate;
+CREATE TABLE file_migrate (
+       src_bfid character varying,
+       dst_path character varying,
+       copied timestamp with time zone default NOW(),
+       checked boolean, 
+       stored boolean default false
+);
+ALTER TABLE ONLY file_migrate
+      ADD CONSTRAINT pk_file_migrate PRIMARY KEY (src_bfid);
+
+ALTER TABLE ONLY file_migrate
+    ADD CONSTRAINT fk_file_migrate FOREIGN KEY (src_bfid)
+    REFERENCES file(bfid)
+    ON UPDATE CASCADE ON DELETE CASCADE;
+
+grant select on  file_migrate to enstore_reader;
+
+"""
+
 def print_error(text):
     """
     Print text string to stderr prefixed with timestamp
@@ -101,8 +122,8 @@ def execute_command(cmd):
                          shell=True)
     output, errors = p.communicate()
     rc = p.returncode
-#    if rc != 0:
-#       print_error(errors)
+    #if rc != 0:
+    #   print_error(errors)
     return rc
 
 
@@ -275,8 +296,9 @@ def copy(source, dest):
         rc = execute_command(cmd)
 	if rc != 0:
 	    try:
-                os.chmod(source, stat.S_IROTH)
+                os.chmod(source, stat.S_IWRITE | stat.S_IREAD | stat.S_IRGRP | stat.S_IROTH )
 	    except Exception as e:
+                print_error("Failed to chmod %s %s"%(source, str(e)))
                 pass
     return rc
 
