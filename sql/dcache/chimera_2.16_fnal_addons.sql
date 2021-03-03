@@ -7,7 +7,7 @@ CREATE OR REPLACE FUNCTION path2inumber(path character varying) RETURNS  BIGINT
     AS $$
 DECLARE
     elements varchar[] := string_to_array(trim(leading '/' from path), '/');
-    child varchar;
+    child bigint;
     itype INT;
     link varchar;
     type     int;
