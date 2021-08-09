@@ -100,7 +100,7 @@ def execute_admin_command(ssh, cmd):
     return stdout.readlines()
 
 
-def is_cached(ssh, pnfsid): 
+def is_cached(ssh, pnfsid):
     result = execute_admin_command(ssh, "\sn cacheinfoof " + pnfsid)
     payload = result[0].strip()
     if payload == "":
@@ -109,13 +109,13 @@ def is_cached(ssh, pnfsid):
         return True
 
 
-def mark_precious(ssh, pool, pnfsid): 
+def mark_precious(ssh, pool, pnfsid):
     #result = execute_admin_command(ssh, "\s " + pool + " rep set precious " + pnfsid)
     result = execute_admin_command(ssh, "\sl " + pnfsid  + " rep set precious " + pnfsid)
     print_message("Marked precious %s" % ( result, ))
     return True
 
-def get_locations(ssh, pnfsid): 
+def get_locations(ssh, pnfsid):
     result = execute_admin_command(ssh, "\sn cacheinfoof " + pnfsid)
     payload = result[0].strip()
     if payload == "":
@@ -129,14 +129,14 @@ def get_active_pools_in_pool_group(ssh, pgroup):
     hasPoolList = False
     for line in result:
         i = line.strip()
-        if not i: 
+        if not i:
             continue
         if i.strip().startswith("poolList :"):
             hasPoolList = True
             continue
-        if hasPoolList: 
+        if hasPoolList:
             parts = i.split()
-            if parts[1].find("mode=disabled") != -1: 
+            if parts[1].find("mode=disabled") != -1:
                 continue
             pool = parts[0].strip()
             pools.append(pool)
@@ -493,7 +493,7 @@ class StageWorker(multiprocessing.Process):
                         except (OSError, IOError) as e:
                             if e.errno == errno.ENOENT:
                                 try:
-                                    print_error("%s %s %s $s Does not exist, mark deleted "%(label, i[0], i[1], p))
+                                    print_error("%s %s %s Does not exist, mark deleted "%(label, i[0], i[1]))
                                     cursor.execute("update file set deleted = 'y' where bfid = %s", (i[0],))
                                     connection.commit()
                                 except Exception as e:
@@ -675,7 +675,7 @@ class CopyWorker(multiprocessing.Process):
             connection = pool.connection()
             try:
                 res = CopyWorker.select(connection, "select pnfsid2inumber(%s)",(pnfsid,))
-                inumber = res[0][0] 
+                inumber = res[0][0]
                 res = CopyWorker.insert(connection, "delete from t_level_1 where inumber=%s",(inumber,))
                 res = CopyWorker.insert(connection, "delete from t_level_4 where inumber=%s",(inumber,))
                 res = CopyWorker.insert(connection, "delete from t_storageinfo where inumber=%s",(inumber,))
@@ -694,7 +694,7 @@ class CopyWorker(multiprocessing.Process):
             except Exception:
                 pass
         return False
-        
+
 
     @staticmethod
     def mark_migrated(pool, entry):
@@ -776,7 +776,7 @@ class CopyWorker(multiprocessing.Process):
                         rc = CopyWorker.bust_layers(chimera_pool, entry)
                         rc = CopyWorker.mark_migrated(enstoredb_pool, entry)
             except:
-                pass 
+                pass
 
         ssh.close()
         return
@@ -852,7 +852,7 @@ def main():
 
     stage_queue.join()
 
-    kinitWorker.stop = True 
+    kinitWorker.stop = True
     kinitWorker.terminate()
 
     print_message("**** FINISH ****")
@@ -861,4 +861,3 @@ def main():
 
 if __name__ == "__main__":
     main()
-
