@@ -50,7 +50,7 @@ grant select on  file_migrate to enstore_reader;
 """
 
 HOSTNAME = socket.gethostname()
-SSH_HOST = "cmsdcatapehead.fnal.gov"
+SSH_HOST = "localhost"
 SSH_PORT = 22224
 SSH_USER = "admin"
 POOL_GROUP = "readonlyPools"
