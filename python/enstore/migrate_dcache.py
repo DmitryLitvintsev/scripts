@@ -49,17 +49,13 @@ grant select on  file_migrate to enstore_reader;
 
 """
 
-# Constants used:
-
 HOSTNAME = socket.gethostname()
-SSH_HOST = "cmsdcatapehead"
+SSH_HOST = "cmsdcatapehead.fnal.gov"
 SSH_PORT = 22224
 SSH_USER = "admin"
 POOL_GROUP = "readonlyPools"
-
 ENSTORE_DB_HOST = "localhost"
 CHIMERA_DB_HOST = "localhost"
-
 
 def execute_command(cmd):
     """
@@ -272,6 +268,9 @@ class StageWorker(multiprocessing.Process):
                 connection = pool.connection()
                 cursor = connection.cursor()
                 try:
+                    #
+                    # Mark volume "migrating"
+                    #
                     cursor.execute("update volume set system_inhibit_1 = 'migrating' where label = %s",
                                    (label,))
                     connection.commit()
@@ -282,6 +281,9 @@ class StageWorker(multiprocessing.Process):
                     continue
 
                 try:
+                    #
+                    # get list of eligible files 
+                    # 
                     cursor.execute("select f.bfid, f.pnfs_id, f.crc, f.size "
                                    "from file f inner join volume v on v.id = f.volume "
                                    "left outer join file_migrate fm on f.bfid = fm.src_bfid where v.label = %s "
@@ -294,6 +296,9 @@ class StageWorker(multiprocessing.Process):
                     files = []
                     for i in res:
                         try:
+                            #
+                            # extract file path by pnfsid
+                            #
                             p = get_path(i[1])
                             files.append((i[0], i[1], i[2], i[3]))
                         except (OSError, IOError) as e:
