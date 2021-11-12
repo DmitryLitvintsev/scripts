@@ -49,11 +49,16 @@ grant select on  file_migrate to enstore_reader;
 
 """
 
+# Constants used:
+
 HOSTNAME = socket.gethostname()
-SSH_HOST = "cmsdcatapehead.fnal.gov"
+SSH_HOST = "cmsdcatapehead"
 SSH_PORT = 22224
 SSH_USER = "admin"
 POOL_GROUP = "readonlyPools"
+
+ENSTORE_DB_HOST = "localhost"
+CHIMERA_DB_HOST = "localhost"
 
 
 def execute_command(cmd):
@@ -242,7 +247,7 @@ class StageWorker(multiprocessing.Process):
                         maxconnections=1,
                         maxcached=1,
                         blocking=True,
-                        host="enstore00",
+                        host=ENSTORE_DB_HOST,
                         port=8888,
                         user="enstore",
                         database="enstoredb")
@@ -252,7 +257,7 @@ class StageWorker(multiprocessing.Process):
                                 maxconnections=1,
                                 maxcached=1,
                                 blocking=True,
-                                host="cmsdcatapedb",
+                                host=CHIMERA_DB_HOST,
                                 user="enstore",
                                 database="chimera")
         while True:
