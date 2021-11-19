@@ -54,8 +54,7 @@ SSH_HOST = "localhost"
 SSH_PORT = 22224
 SSH_USER = "admin"
 POOL_GROUP = "readonlyPools"
-ENSTORE_DB_HOST = "localhost"
-CHIMERA_DB_HOST = "localhost"
+
 
 def execute_command(cmd):
     """
@@ -75,13 +74,14 @@ def execute_command(cmd):
     return rc
 
 
+KRB5CCNAME = "/tmp/krb5cc_root.migration-%s"%(UUID,)
+os.environ["KRB5CCNAME"] =  KRB5CCNAME
+
+
 def kinit():
     """
     Create kerberos ticket for admin shell access
     """
-    KRB5CCNAME = "/tmp/krb5cc_root.migration-%s"%(UUID,)
-    os.environ["KRB5CCNAME"] =  KRB5CCNAME
-
     cmd = "/usr/bin/kinit -k host/%s"%(HOSTNAME)
     execute_command(cmd)
 
@@ -122,13 +122,48 @@ def is_cached(ssh, pnfsid):
         return True
 
 
+def get_locations(ssh, pnfsid):
+    """
+    get list of replica locations
+    """
+    result = execute_admin_command(ssh, "\sn cacheinfoof " + pnfsid)
+    payload = result[0].strip()
+    if payload == "":
+        return []
+    else:
+        return payload.split()
+
+
 def mark_precious(ssh, pnfsid):
     """
     marks pnfsid on all locations as precious
     """
     result = execute_admin_command(ssh, "\sl " + pnfsid  + " rep set precious " + pnfsid)
-    #print_message("Marked precious %s" % ( result, ))
+    # print_message("Marked precious %s" % ( result, ))
     return True
+
+
+def mark_precious_on_location(ssh, pool, pnfsid):
+    """
+    marks pnfsid on a pool as precious 
+    """
+    result = execute_admin_command(ssh, "\s " + pool  + " rep set precious " + pnfsid)
+    print_message("Marked precious %s %s %s" % (pnfsid, pool, result, ))
+    return True
+
+
+def get_precious_fraction(ssh, pool):
+    """
+    return fraction of precious data on pool
+    """
+    result = execute_admin_command(ssh, "\s " + pool + " info -a")
+    lines = [i.strip() for i in result]
+    percentage = 0
+    for l in lines:
+        if l.find("Precious") != -1:
+            percentage = float(re.sub("[\[-\]]","",l.split()[-1]))
+            break
+    return percentage
 
 
 def get_active_pools_in_pool_group(ssh, pgroup):
@@ -243,7 +278,7 @@ class StageWorker(multiprocessing.Process):
                         maxconnections=1,
                         maxcached=1,
                         blocking=True,
-                        host=ENSTORE_DB_HOST,
+                        host="localhost",
                         port=8888,
                         user="enstore",
                         database="enstoredb")
@@ -253,7 +288,7 @@ class StageWorker(multiprocessing.Process):
                                 maxconnections=1,
                                 maxcached=1,
                                 blocking=True,
-                                host=CHIMERA_DB_HOST,
+                                host="localhost",
                                 user="enstore",
                                 database="chimera")
         while True:
@@ -268,9 +303,6 @@ class StageWorker(multiprocessing.Process):
                 connection = pool.connection()
                 cursor = connection.cursor()
                 try:
-                    #
-                    # Mark volume "migrating"
-                    #
                     cursor.execute("update volume set system_inhibit_1 = 'migrating' where label = %s",
                                    (label,))
                     connection.commit()
@@ -281,9 +313,6 @@ class StageWorker(multiprocessing.Process):
                     continue
 
                 try:
-                    #
-                    # get list of eligible files 
-                    # 
                     cursor.execute("select f.bfid, f.pnfs_id, f.crc, f.size "
                                    "from file f inner join volume v on v.id = f.volume "
                                    "left outer join file_migrate fm on f.bfid = fm.src_bfid where v.label = %s "
@@ -296,9 +325,6 @@ class StageWorker(multiprocessing.Process):
                     files = []
                     for i in res:
                         try:
-                            #
-                            # extract file path by pnfsid
-                            #
                             p = get_path(i[1])
                             files.append((i[0], i[1], i[2], i[3]))
                         except (OSError, IOError) as e:
@@ -334,18 +360,24 @@ class StageWorker(multiprocessing.Process):
             total = number_of_files
             print("Doing label %s, number of files %d" % (label, number_of_files))
             cached = loop = count = 0
+            pools = get_active_pools_in_pool_group(ssh, POOL_GROUP)
             while files:
                 count += 1 
                 bfid, pnfsid, crc, fsize = files.pop(0)
-                cached_check = is_cached(ssh, pnfsid)
-                if not cached_check:
+                locations = get_locations(ssh, pnfsid)
+                location = ""
+                for i in locations:
+                    if i in pools:
+                        location = i
+                if not location: 
                     files.append((bfid, pnfsid, crc, fsize))
                     stage(ssh, self.pool, pnfsid)
                 else:
                     # file is online
                     cached += 1
                     #print_message("%s File is online, calling mark_precious %s %s" % (label, bfid, pnfsid))
-                    rc = mark_precious(ssh, pnfsid)
+                    #rc = mark_precious(ssh, pnfsid)
+                    rc = mark_precious_on_location(ssh, location, pnfsid)
                     if rc:
                         rc = bust_layers(chimera_pool, (label, bfid, pnfsid, crc, self.pool))
                         rc = mark_migrated(pool, (label, bfid, pnfsid, crc, self.pool))
@@ -355,11 +387,25 @@ class StageWorker(multiprocessing.Process):
                     print_message("%s, %s : %d staged, %d total, %d remain,  %d pass" %
                                   (self.pool, label, cached, total,  number_of_files, loop))
                     count = 0 
+                    #
+                    # Check that label is still OK 
+                    #
+                    inhibit = get_label_system_inhibit(pool, label)
+                    if inhibit in ('NOACCESS', 'NOTALLOWED',):
+                        print_error("%s, %s : %s, Skipping ", (self.pool, label, inhibit, ))
+                        break
                     print_message("%s, %s Sleeping" % (self.pool, label, ))
-                    time.sleep(1200)
+                    pools = get_active_pools_in_pool_group(ssh, POOL_GROUP)
+                    time.sleep(600)
 
             # label is done here
             print_message("%s, %s : Done" % (self.pool, label, ))
+            # before next label
+            precious_fraction = get_precious_fraction(ssh, self.pool)
+            while precious_fraction > 0.1:
+                print_message("%s pool has %d percent precious, sleeping" % (self.pool, int(precious_fraction * 100),))
+                time.sleep(600)
+                precious_fraction = get_precious_fraction(ssh, self.pool)
             self.stage_queue.task_done()
         ssh.close()
         return
@@ -442,6 +488,28 @@ def select(con, sql, pars):
             except Exception:
                 pass
 
+def get_label_system_inhibit(pool, label): 
+    """
+    get label status
+    """
+    connection = None
+    try:
+        connection = pool.connection()
+        res = select(connection, " select system_inhibit_0 from volume where label = %s", (label, ))
+        return res[0][0]
+    except Exception as e:
+            print_error("%s Failed to query system inhibit for label %s " % (label, ))
+            pass
+    except Exception as e:
+        print_error("%s Failed to get connection when querying system inhibit for lanel %s" % (label, ))
+        pass
+    finally:
+        try:
+            if connection:
+                connection.close()
+        except Exception:
+            pass
+    return None
 
 def bust_layers(pool, entry):
     """"
