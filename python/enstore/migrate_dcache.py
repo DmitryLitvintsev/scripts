@@ -54,7 +54,8 @@ SSH_HOST = "localhost"
 SSH_PORT = 22224
 SSH_USER = "admin"
 POOL_GROUP = "readonlyPools"
-
+ENSTORE_DB_HOST = "localhost"
+CHIMERA_DB_HOST = "localhost"
 
 def execute_command(cmd):
     """
@@ -278,7 +279,7 @@ class StageWorker(multiprocessing.Process):
                         maxconnections=1,
                         maxcached=1,
                         blocking=True,
-                        host="localhost",
+                        host=ENSTORE_DB_HOST,
                         port=8888,
                         user="enstore",
                         database="enstoredb")
@@ -288,7 +289,7 @@ class StageWorker(multiprocessing.Process):
                                 maxconnections=1,
                                 maxcached=1,
                                 blocking=True,
-                                host="localhost",
+                                host=CHIMERA_DB_HOST,
                                 user="enstore",
                                 database="chimera")
         while True:
@@ -313,6 +314,9 @@ class StageWorker(multiprocessing.Process):
                     continue
 
                 try:
+                    #
+                    # get list of eligible files 
+                    #
                     cursor.execute("select f.bfid, f.pnfs_id, f.crc, f.size "
                                    "from file f inner join volume v on v.id = f.volume "
                                    "left outer join file_migrate fm on f.bfid = fm.src_bfid where v.label = %s "
@@ -325,6 +329,9 @@ class StageWorker(multiprocessing.Process):
                     files = []
                     for i in res:
                         try:
+                            #
+                            # extract path by pnfsid
+                            # 
                             p = get_path(i[1])
                             files.append((i[0], i[1], i[2], i[3]))
                         except (OSError, IOError) as e:
