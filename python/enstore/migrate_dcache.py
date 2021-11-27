@@ -399,7 +399,7 @@ class StageWorker(multiprocessing.Process):
                     #
                     inhibit = get_label_system_inhibit(pool, label)
                     if inhibit in ('NOACCESS', 'NOTALLOWED',):
-                        print_error("%s, %s : %s, Skipping ", (self.pool, label, inhibit, ))
+                        print_error("%s, %s : %s, Skipping " % (self.pool, label, inhibit, ))
                         break
                     print_message("%s, %s Sleeping" % (self.pool, label, ))
                     pools = get_active_pools_in_pool_group(ssh, POOL_GROUP)
