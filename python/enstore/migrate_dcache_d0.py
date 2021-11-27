@@ -551,7 +551,7 @@ class StageWorker(multiprocessing.Process):
                     #
                     inhibit = CopyWorker.get_label_system_inhibit(pool, label)
                     if inhibit in ('NOACCESS', 'NOTALLOWED',):
-                        print_error("%s, %s : %s, Skipping ", (self.pool, label, inhibit, ))
+                        print_error("%s, %s : %s, Skipping " % (self.pool, label, inhibit, ))
                         break
                     print_message("%s %s Sleeping" % (self.pool, label, ))
                     time.sleep(600)
