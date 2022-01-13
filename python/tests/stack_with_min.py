@@ -1,16 +1,21 @@
 """
 Various stack problems. Stack - LIFO
+Stack that has pop(), push(), min() methods that are O(1) in time 
+
+
 """
 
 from __future__ import print_function
 import sys
 
+_BIG_NUMBER = 1<<64-1
 
 class Node:
     
-    def __init__(self, data):
+    def __init__(self, data, min):
         self.next = None
         self.data = data
+        self.min = min
 
     def __repr__(self):
         return str(self.data)
@@ -21,15 +26,23 @@ class Stack:
     def __init__(self):
         self.top = None
         self.size = 0
-        self.min = 1<<64-1
+
+    def min(self):
+        if self.size == 0:
+            return  _BIG_NUMBER
+        else:
+            return self.top.min
+
+    def get_minimum(self):
+        return self.min()
+        
 
     def push(self, data):
-        n = Node(data)
+        minimum = min(self.min(), data)
+        n = Node(data, minimum)
         n.next = self.top
         self.top = n
         self.size += 1
-        if data <  self.min:
-            self.min = data
 
     def pop(self):
         if not self.top:
@@ -37,29 +50,12 @@ class Stack:
         top = self.top
         self.top = self.top.next
         self.size -= 1
-        if top.data == min:
-            self.get_min()
         return top.data
 
     def peek(self):
         if not self.top:
             return None
         return self.top.data
-
-    def get_min(self):
-        # return minimum element O(N)
-        if self.size == 0:
-            return None
-        min = 1<<64-1
-        current = self.top
-        while current:
-            if current.data < min:
-                min = current.data
-            current = current.next
-        self.min =  min
-
-    def get_minimum(self):
-        return self.min
 
     def __repr__(self):
         if self.size == 0:
@@ -84,6 +80,7 @@ if __name__ == "__main__":
     s.push(2)
     s.push(3)
     s.push(4)
+    s.push(0)
     print("min ", s.get_minimum());
     print(s)
     a = s.pop()

@@ -191,7 +191,39 @@ class LinkedList:
     def get_tail(self):
         return self.tail
         
+    def add_loop(self, data):
+        #
+        # add loop to list
+        #
+        current = self.head
+        while current:
+            if current.data == data:
+                self.tail.next = current
+                break
+            current = current.next
 
+    def has_loop(self):
+        #
+        # cheater method 
+        #
+        if self.tail.next:
+            return self.tail.next.data
+
+    def find_loop(self):
+        #
+        # assume we do not keep the tail
+        #
+        hash = set()
+        current = self.head
+        while current:
+            if current in hash:
+                return current.data
+            hash.add(current)
+            current = current.next
+        return None
+
+
+    
 if __name__ == "__main__":
     l = LinkedList()
     l.remove(1)
@@ -200,6 +232,8 @@ if __name__ == "__main__":
     popped = l.pop()
     print ("popped", popped)
     print(l, l.size, l.get_head(), l.get_tail())
+
+    print("found loop ", l.find_loop())
     
     l.add_front(2)
     l.add_front(2)
@@ -236,3 +270,12 @@ if __name__ == "__main__":
     print(l, l.size, l.get_head(), l.get_tail())
     l.remove_duplicates_time()
     print(l, l.size, l.get_head(), l.get_tail())
+
+    l = LinkedList()
+    for i in range(10):
+        l.add_back(i)
+    print(l, l.size, l.get_head(), l.get_tail())
+    l.add_loop(5) # poison pil, tail points at 5
+    print("has loop", l.has_loop())
+    loop = l.find_loop()
+    print("Found loop", loop)
