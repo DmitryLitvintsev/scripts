@@ -823,7 +823,7 @@ def main():
         labels = args.label.strip().split(",")
 
     if not labels:
-        print_error("No lanels specified ")
+        print_error("No labels specified ")
 
     print_message("Found %d labels" % (len(labels)))
 

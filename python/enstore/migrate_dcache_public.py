@@ -282,6 +282,12 @@ class StageWorker(multiprocessing.Process):
                                 user="enstore",
                                 database="chimera")
         while True:
+            # before next label
+            precious_fraction = get_precious_fraction(ssh, self.pool)
+            while precious_fraction > 0.1:
+                print_message("%s pool has %d percent precious, sleeping" % (self.pool, int(precious_fraction * 100),))
+                time.sleep(600)
+                precious_fraction = get_precious_fraction(ssh, self.pool)
             label = self.stage_queue.get()
             if label is None:
                 print_message("%s: Exiting" % self.name)
@@ -367,8 +373,8 @@ class StageWorker(multiprocessing.Process):
                     cached += 1
                     #print_message("%s File is online, calling mark_precious %s %s" % (label, bfid, pnfsid))
                     #rc = mark_precious(ssh, pnfsid)
-                    rc = bust_layers(chimera_pool, (label, bfid, pnfsid, crc, self.pool))
                     rc = mark_precious_on_location(ssh, location, pnfsid)
+                    rc = bust_layers(chimera_pool, (label, bfid, pnfsid, crc, self.pool))
                     rc = mark_migrated(pool, (label, bfid, pnfsid, crc, self.pool))
                 if count == number_of_files and files:
                     loop += 1
@@ -389,12 +395,6 @@ class StageWorker(multiprocessing.Process):
 
             # label is done here
             print_message("%s, %s : Done" % (self.pool, label, ))
-            # before next label
-            precious_fraction = get_precious_fraction(ssh, self.pool)
-            while precious_fraction > 0.1:
-                print_message("%s pool has %d percent precious, sleeping" % (self.pool, int(precious_fraction * 100),))
-                time.sleep(600)
-                precious_fraction = get_precious_fraction(ssh, self.pool)
             self.stage_queue.task_done()
         ssh.close()
         return
