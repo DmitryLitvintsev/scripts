@@ -1,5 +1,5 @@
 #!/bin/env python
-
+from __future__ import print_function
 import argparse
 import errno
 import multiprocessing
@@ -18,6 +18,10 @@ import paramiko
 import psycopg2
 import psycopg2.extras
 from DBUtils.PooledDB import PooledDB
+
+import pandas as pd
+from tabulate import tabulate
+
 
 printLock = multiprocessing.Lock()
 kinitLock = multiprocessing.Lock()
@@ -54,6 +58,78 @@ SSH_HOST = "fndca"
 SSH_PORT = 24223
 SSH_USER = "enstore"
 POOL_GROUP = "CdfWritePools"
+
+UPDATER_SQL = """
+UPDATE file_migrate
+SET dst_bfid = t.bfid
+FROM
+  (SELECT fm.src_bfid AS src_bfid,
+          f.bfid AS bfid
+   FROM file_migrate fm
+   INNER JOIN FILE f ON fm.pnfsid = f.pnfs_id
+   INNER JOIN volume v ON f.volume = v.id
+   AND f.deleted = 'n'
+   AND v.media_type = 'LTO8'
+   AND fm.dst_bfid IS NULL) AS t
+WHERE t.src_bfid = file_migrate.src_bfid
+  AND file_migrate.dst_bfid IS NULL;
+"""
+
+PROGRESS_SQL="""
+SELECT to_char(sum(CASE
+                       WHEN dst_bfid IS NOT NULL THEN f.size
+                       ELSE 0
+                   END)/1024./1024./1024./1024., '99999D9') AS migrated,
+       to_char(sum(CASE
+                       WHEN dst_bfid IS NOT NULL THEN 0
+                       ELSE f.size
+                   END)/1024./1024./1024./1024., '999D9') AS precious,
+       v.storage_group
+FROM FILE f
+INNER JOIN volume v ON v.id = f.volume
+INNER JOIN file_migrate fm ON f.bfid = fm.src_bfid
+GROUP BY v.storage_group;
+"""
+
+def print_progress():
+    connection = None
+    try:
+        connection = psycopg2.connect(dbname="enstoredb",
+                                      host="enstore00",
+                                      port=8888,
+                                      user="enstore")
+        data = pd.read_sql_query(PROGRESS_SQL,
+                                 connection)
+        print(tabulate(data,
+                       headers='keys',
+                       tablefmt='psql'))
+    finally:
+        if connection:
+            try:
+                connection.close()
+            except:
+                pass
+
+
+def updater():
+    cusor = connection = None
+    try:
+        connection = psycopg2.connect(dbname="enstoredb",
+                                      host="enstore00",
+                                      port=8888,
+                                      user="enstore")
+        cursor = connection.cursor()
+        cursor.execute(UPDATER_SQL)
+        connection.commit()
+        return 0
+    except:
+        return 1
+    finally:
+        for i in (cursor, connection):
+            try:
+                i.close()
+            except:
+                pass
 
 
 def execute_command(cmd):
@@ -288,6 +364,7 @@ class StageWorker(multiprocessing.Process):
                 print_message("%s pool has %d percent precious, sleeping" % (self.pool, int(precious_fraction * 100),))
                 time.sleep(600)
                 precious_fraction = get_precious_fraction(ssh, self.pool)
+
             label = self.stage_queue.get()
             if label is None:
                 print_message("%s: Exiting" % self.name)
@@ -589,12 +666,28 @@ def main():
         "--label",
         help="comma separated list of labels")
 
+    parser.add_argument(
+        "--progress", action='store_true',
+        help="print overall migration progress by storage group")
+
+
+    parser.add_argument(
+        "--update", action='store_true',
+        help="run updater")
+
     args = parser.parse_args()
+    
+    if args.progress:
+        print_progress()
+        sys.exit(0)
+
+    if args.update:
+        sys.exit(updater())
 
     if not args.file and not args.label:
         parser.print_help(sys.stderr)
         sys.exit(1)
-
+        
     if args.file:
         with open(args.file, "r") as f:
             labels = [i.strip() for i in f]
