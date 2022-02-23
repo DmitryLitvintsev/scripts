@@ -17,7 +17,12 @@ import gssapi
 import paramiko
 import psycopg2
 import psycopg2.extras
-from DBUtils.PooledDB import PooledDB
+
+try:
+    from DBUtils.PooledDB import PooledDB
+except  ModuleNotFoundError:
+    from dbutils.pooled_db import PooledDB
+
 
 import pandas as pd
 from tabulate import tabulate
