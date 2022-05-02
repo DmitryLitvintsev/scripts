@@ -607,7 +607,7 @@ def get_label_system_inhibit(pool, label):
             print_error("%s Failed to query system inhibit for label %s " % (label, ))
             pass
     except Exception as e:
-        print_error("%s Failed to get connection when querying system inhibit for lanel %s" % (label, ))
+        print_error("%s Failed to get connection when querying system inhibit for label %s" % (label, ))
         pass
     finally:
         try:
@@ -635,10 +635,10 @@ def bust_layers(pool, entry):
             res = insert(connection, "delete from t_locationinfo where inumber=%s and itype=0", (inumber, ))
             return True
         except Exception as e:
-            print_error("%s Failed to insert into file_migrate %s %s %s " % (label, bfid, pnfsid, str(e)))
+            print_error("%s Failed to drop layers  %s %s %s " % (label, bfid, pnfsid, str(e)))
             pass
     except Exception as e:
-        print_error("%s Failed to get connection when inserting into file_migrate %s" % (label, str(e),))
+        print_error("%s Failed to get connection when trying to drop layers %s %s %s" % (label, bfid, pnfsid, str(e),))
         pass
     finally:
         try:
