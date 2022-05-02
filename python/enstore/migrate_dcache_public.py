@@ -581,6 +581,7 @@ def select(con, sql, pars):
     :return: result
     :rtype: object
     """
+    cursor = None
     try:
         cursor = con.cursor()
         cursor.execute(sql, pars)
