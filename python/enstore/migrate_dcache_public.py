@@ -4,16 +4,13 @@ import argparse
 import errno
 import multiprocessing
 import os
-import random
 import re
 import socket
-import stat
 import subprocess
 import sys
 import time
 import uuid
 
-import gssapi
 import paramiko
 import psycopg2
 import psycopg2.extras
@@ -95,6 +92,7 @@ INNER JOIN volume v ON v.id = f.volume
 INNER JOIN file_migrate fm ON f.bfid = fm.src_bfid
 GROUP BY v.storage_group
 """
+
 PROGRESS_FOR_SG_SQL="""
 SELECT to_char(sum(CASE
                        WHEN dst_bfid IS NOT NULL THEN f.size
@@ -109,6 +107,7 @@ INNER JOIN volume v ON v.id = f.volume
 INNER JOIN file_migrate fm ON f.bfid = fm.src_bfid
 WHERE v.storage_group = '%s'
 """
+
 
 def print_progress(sg=None):
     connection = None
@@ -135,7 +134,7 @@ def print_progress(sg=None):
 
 
 def updater():
-    cusor = connection = None
+    cursor = connection = None
     try:
         connection = psycopg2.connect(dbname="enstoredb",
                                       host="enstore00",
@@ -172,8 +171,10 @@ def execute_command(cmd):
     rc = p.returncode
     return rc
 
+
 KRB5CCNAME = "/tmp/krb5cc_root.migration-%s"%(UUID,)
-os.environ["KRB5CCNAME"] =  KRB5CCNAME
+os.environ["KRB5CCNAME"] = KRB5CCNAME
+
 
 def kinit():
     """
@@ -205,7 +206,7 @@ def execute_admin_command(ssh, cmd):
     stdin, stdout, stderr = ssh.exec_command(cmd)
     if len(stderr.readlines()) > 0:
         raise RuntimeError(" ".join(stderr.readlines()))
-    return [i.strip().replace(r"\r","\n") for i in stdout.readlines() if i.strip().replace(r"\r","\n") != ""]
+    return [i.strip().replace(r"\r","\n") for i in stdout.readlines() if i.strip().replace(r"\r", "\n") != ""]
 
 
 def is_cached(ssh, pnfsid):
@@ -218,6 +219,7 @@ def is_cached(ssh, pnfsid):
     else:
         return True
 
+
 def get_locations(ssh, pnfsid): 
     result = execute_admin_command(ssh, "\sn cacheinfoof " + pnfsid)
     if result:
@@ -225,19 +227,20 @@ def get_locations(ssh, pnfsid):
     else:
         return []
 
+
 def mark_precious(ssh, pnfsid):
     """
     marks pnfsid on all locations as precious
     """
-    result = execute_admin_command(ssh, "\sl " + pnfsid  + " rep set precious " + pnfsid)
-    #print_message("Marked precious %s" % ( result, ))
+    result = execute_admin_command(ssh, "\sl " + pnfsid + " rep set precious " + pnfsid)
     return True
+
 
 def mark_precious_on_location(ssh, pool, pnfsid):
     """
     marks pnfsid on a pool as precious 
     """
-    result = execute_admin_command(ssh, "\s " + pool  + " rep set precious " + pnfsid)
+    result = execute_admin_command(ssh, "\s " + pool + " rep set precious " + pnfsid)
     print_message("Marked precious %s %s %s" % (pnfsid, pool, result, ))
     return True
 
@@ -249,11 +252,12 @@ def get_precious_fraction(ssh, pool):
     result = execute_admin_command(ssh, "\s " + pool + " info -a")
     lines = [i.strip() for i in result]
     percentage = 0
-    for l in lines:
-        if l.find("Precious") != -1:
-            percentage = float(re.sub("[\[-\]]","",l.split()[-1]))
+    for line in lines:
+        if line.find("Precious") != -1:
+            percentage = float(re.sub("[\[-\]]","", line.split()[-1]))
             break
     return percentage
+
 
 def get_active_pools_in_pool_group(ssh, pgroup):
     """
@@ -458,7 +462,7 @@ class StageWorker(multiprocessing.Process):
                         except Exception:
                             pass
             if not pnfs_mounted: 
-                print_error("%s %s %s: PNFS not mounted, mount pnfs. Quitting"%(self.pool, label,))
+                print_error("%s %s %s: PNFS is not mounted, mount pnfs. Quitting" % (self.pool, label,))
                 self.stage_queue.task_done()
                 break
 
@@ -528,6 +532,7 @@ def update(con, sql, pars):
     """
     return insert(con, sql, pars)
 
+
 def insert(con, sql, pars):
     """
     Insert database record
@@ -587,6 +592,7 @@ def select(con, sql, pars):
             except Exception:
                 pass
 
+
 def get_label_system_inhibit(pool, label): 
     """
     get label status
@@ -609,6 +615,7 @@ def get_label_system_inhibit(pool, label):
         except Exception:
             pass
     return None
+
 
 def bust_layers(pool, entry):
     """"
