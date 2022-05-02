@@ -26,6 +26,7 @@ except ModuleNotFoundError:
 import pandas as pd
 from tabulate import tabulate
 
+PNFS_HOME = "/pnfs/fs/usr"
 
 printLock = multiprocessing.Lock()
 kinitLock = multiprocessing.Lock()
@@ -76,7 +77,7 @@ FROM
    AND v.media_type = 'LTO8'
    AND fm.dst_bfid IS NULL) AS t
 WHERE t.src_bfid = file_migrate.src_bfid
-  AND file_migrate.dst_bfid IS NULL;
+  AND file_migrate.dst_bfid IS NULL
 """
 
 PROGRESS_SQL="""
@@ -92,18 +93,36 @@ SELECT to_char(sum(CASE
 FROM FILE f
 INNER JOIN volume v ON v.id = f.volume
 INNER JOIN file_migrate fm ON f.bfid = fm.src_bfid
-GROUP BY v.storage_group;
+GROUP BY v.storage_group
+"""
+PROGRESS_FOR_SG_SQL="""
+SELECT to_char(sum(CASE
+                       WHEN dst_bfid IS NOT NULL THEN f.size
+                       ELSE 0
+                   END)/1024./1024./1024./1024., '99999D9') AS migrated,
+       to_char(sum(CASE
+                       WHEN dst_bfid IS NOT NULL THEN 0
+                       ELSE f.size
+                   END)/1024./1024./1024./1024., '999D9') AS precious
+FROM FILE f
+INNER JOIN volume v ON v.id = f.volume
+INNER JOIN file_migrate fm ON f.bfid = fm.src_bfid
+WHERE v.storage_group = '%s'
 """
 
-def print_progress():
+def print_progress(sg=None):
     connection = None
     try:
         connection = psycopg2.connect(dbname="enstoredb",
                                       host="enstore00",
                                       port=8888,
                                       user="enstore")
-        data = pd.read_sql_query(PROGRESS_SQL,
-                                 connection)
+        if sg:
+            data = pd.read_sql_query(PROGRESS_FOR_SG_SQL % (sg, ),
+                                     connection)
+        else:
+            data = pd.read_sql_query(PROGRESS_SQL,
+                                     connection)
         print(tabulate(data,
                        headers='keys',
                        tablefmt='psql'))
@@ -401,6 +420,7 @@ class StageWorker(multiprocessing.Process):
                         self.stage_queue.task_done()
                         continue
                     files = []
+                    pnfs_mounted = True
                     for i in res:
                         try:
                             p = get_path(i[1])
@@ -408,9 +428,13 @@ class StageWorker(multiprocessing.Process):
                         except (OSError, IOError) as e:
                             if e.errno == errno.ENOENT:
                                 try:
-                                    print_error("%s %s %s Does not exist, mark deleted "%(label, i[0], i[1]))
-                                    cursor.execute("update file set deleted = 'y' where bfid = %s", (i[0],))
-                                    connection.commit()
+                                    if os.path.exists(PNFS_HOME):
+                                        print_error("%s %s %s Does not exist, mark deleted "%(label, i[0], i[1]))
+                                        cursor.execute("update file set deleted = 'y' where bfid = %s", (i[0],))
+                                        connection.commit()
+                                    else: 
+                                        pnfs_mounted = False
+                                        break
                                 except Exception as e:
                                     print_error("%s %s Failed to set file deleted: %s" % (label, i[0], str(e)))
                                     connection.rollback()
@@ -433,6 +457,10 @@ class StageWorker(multiprocessing.Process):
                             i.close()
                         except Exception:
                             pass
+            if not pnfs_mounted: 
+                print_error("%s %s %s: PNFS not mounted, mount pnfs. Quitting"%(self.pool, label,))
+                self.stage_queue.task_done()
+                break
 
             number_of_files = len(files)
             total = number_of_files
@@ -675,6 +703,9 @@ def main():
         "--progress", action='store_true',
         help="print overall migration progress by storage group")
 
+    parser.add_argument(
+        "--sg", 
+        help="storage group")
 
     parser.add_argument(
         "--update", action='store_true',
@@ -683,7 +714,10 @@ def main():
     args = parser.parse_args()
     
     if args.progress:
-        print_progress()
+        if args.sg:
+            print_progress(args.sg)
+        else:
+            print_progress()
         sys.exit(0)
 
     if args.update:
@@ -702,6 +736,11 @@ def main():
 
 
     labels = []
+    
+    if not os.path.exists(PNFS_HOME):
+        print_error("PNFS is not mounted. Quitting.")
+        sys.exit(1)
+        
 
     if args.file:
         with open(args.file, "r") as f:
