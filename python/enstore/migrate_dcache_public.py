@@ -77,7 +77,7 @@ WHERE t.src_bfid = file_migrate.src_bfid
   AND file_migrate.dst_bfid IS NULL
 """
 
-PROGRESS_SQL="""
+PROGRESS_SQL = """
 SELECT to_char(sum(CASE
                        WHEN dst_bfid IS NOT NULL THEN f.size
                        ELSE 0
@@ -93,7 +93,7 @@ INNER JOIN file_migrate fm ON f.bfid = fm.src_bfid
 GROUP BY v.storage_group
 """
 
-PROGRESS_FOR_SG_SQL="""
+PROGRESS_FOR_SG_SQL = """
 SELECT to_char(sum(CASE
                        WHEN dst_bfid IS NOT NULL THEN f.size
                        ELSE 0
@@ -487,9 +487,19 @@ class StageWorker(multiprocessing.Process):
                     cached += 1
                     #print_message("%s File is online, calling mark_precious %s %s" % (label, bfid, pnfsid))
                     #rc = mark_precious(ssh, pnfsid)
-                    rc = mark_precious_on_location(ssh, location, pnfsid)
-                    rc = bust_layers(chimera_pool, (label, bfid, pnfsid, crc, self.pool))
-                    rc = mark_migrated(pool, (label, bfid, pnfsid, crc, self.pool))
+                    try:
+                        rc = mark_precious_on_location(ssh, location, pnfsid)
+                        try:
+                            rc = bust_layers(chimera_pool, (label, bfid, pnfsid, crc, self.pool))
+                            rc = mark_migrated(pool, (label, bfid, pnfsid, crc, self.pool))
+                        except:
+                            pass
+                    except Exception as e:
+                        print_error("%s, %s : %s %s Failed to mark precious on location %s , %s" %
+                                    (self.pool, label, bfid, pnfsid, location, str(e), ))
+                        files.append((bfid, pnfsid, crc, fsize))
+                        stage(ssh, self.pool, pnfsid)
+
                 if count == number_of_files and files:
                     loop += 1
                     number_of_files = len(files)
