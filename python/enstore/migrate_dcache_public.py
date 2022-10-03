@@ -505,7 +505,11 @@ class StageWorker(multiprocessing.Process):
                     except Exception as e:
                         print_error("%s, %s : %s %s Failed to mark precious on location %s , %s" %
                                     (self.pool, label, bfid, pnfsid, location, str(e), ))
-                        clear_file_cache_location(ssh, location, pnfsid)
+                        try:
+                            rc = clear_file_cache_location(ssh, location, pnfsid)
+                        except Exception as e:
+                            print_error("%s, %s : %s %s Failed to clear file cache location %s , %s" %
+                                        (self.pool, label, bfid, pnfsid, location, str(e), ))
                         files.append((bfid, pnfsid, crc, fsize))
                         stage(ssh, self.pool, pnfsid)
 
