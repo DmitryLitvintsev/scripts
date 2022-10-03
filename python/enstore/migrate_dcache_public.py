@@ -245,6 +245,14 @@ def mark_precious_on_location(ssh, pool, pnfsid):
     return True
 
 
+def clear_file_cache_location(ssh, pool, pnfsid):
+    """
+    clear file cache location
+    """
+    result = execute_admin_command(ssh, "\sn clear file cache location  " + pnfsid + " " + pool)
+    print_message("Cleared file cache location %s %s %s" % (pnfsid, pool, result, ))
+    return True
+
 def get_precious_fraction(ssh, pool):
     """
     return fraction of precious data on pool
@@ -497,6 +505,7 @@ class StageWorker(multiprocessing.Process):
                     except Exception as e:
                         print_error("%s, %s : %s %s Failed to mark precious on location %s , %s" %
                                     (self.pool, label, bfid, pnfsid, location, str(e), ))
+                        clear_file_cache_location(ssh, location, pnfsid)
                         files.append((bfid, pnfsid, crc, fsize))
                         stage(ssh, self.pool, pnfsid)
 
