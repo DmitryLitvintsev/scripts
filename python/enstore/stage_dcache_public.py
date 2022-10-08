@@ -290,7 +290,7 @@ class StageWorker(multiprocessing.Process):
                                    "on v.id = f.volume "
                                    "where v.label = %s "
                                    "and f.deleted = 'n' "
-                                   "and f.package_id  "
+                                   "and f.package_id is null "
                                    "order by f.location_cookie asc", (label, ))
                     res = cursor.fetchall()
                     if not res:
