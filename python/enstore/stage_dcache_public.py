@@ -339,7 +339,7 @@ class StageWorker(multiprocessing.Process):
             while files:
                 count += 1
                 bfid, pnfsid, crc, fsize = files.pop(0)
-                locations []
+                locations = []
                 try:
                     locations = get_locations(ssh, pnfsid)
                 except:
