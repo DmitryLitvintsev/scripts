@@ -607,7 +607,7 @@ def main():
 
     print_message("Found %d labels" % (len(labels)))
 
-    stage_queue = multiprocessing.ueue(100)
+    stage_queue = multiprocessing.Queue(100)
     stage_workers = []
 
     kinitWorker = KinitWorker()
