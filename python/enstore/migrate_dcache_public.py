@@ -757,28 +757,18 @@ def main():
     if not args.file and not args.label:
         parser.print_help(sys.stderr)
         sys.exit(1)
-        
-    if args.file:
-        with open(args.file, "r") as f:
-            labels = [i.strip() for i in f]
 
-    if args.label:
-        labels = args.label.strip().split(",")
-
-
-    labels = []
-    
     if not os.path.exists(PNFS_HOME):
         print_error("PNFS is not mounted. Quitting.")
         sys.exit(1)
-        
 
+    labels = []
     if args.file:
         with open(args.file, "r") as f:
-            labels = [i.strip() for i in f]
+            labels = [i.strip().upper() for i in f]
 
     if args.label:
-        labels = args.label.strip().split(",")
+        labels = [i.upper() for i in args.label.strip().split(",")]
 
     if not labels:
         print_error("No labels found")
