@@ -37,7 +37,7 @@ def main():
             pnfsid = message.get("pnfsid")
             pool = message.get("cellName")
             node = pool.split("-")[-2]
-            if node in _NODES:
+            if node not in _NODES:
                 continue
             transfer_time = message.get("transferTime")
             file_size = message.get("fileSize")
