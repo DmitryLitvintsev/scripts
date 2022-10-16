@@ -1,7 +1,10 @@
+# Example of stacked time series plot
+
 set terminal pdf color solid
-set output 'enstore_reads.pdf'
-set title 'Daily read volumes by major players from Enstore'
-FILE = 'data/enstore_reads.csv'
+set output 'enstore_reads_counts.pdf'
+set title 'Daily read counts by major players to Enstore'
+
+FILE = 'data/enstore_reads_counts.csv'
 
 set key invert reverse right outside
 set style data histogram
@@ -13,7 +16,7 @@ set xtics border in scale 1,0.5 nomirror
 set mxtics 2
 
 set xtics border in scale 1,0.5 nomirror rotate by -90
-set ylabel "TiB / day"
+set ylabel "Count / day"
 set xlabel "date"
 set grid
 set datafile separator ","
