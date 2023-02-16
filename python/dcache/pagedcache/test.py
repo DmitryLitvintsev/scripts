@@ -310,7 +310,7 @@ class Http(Test):
              self.output_filename)
 
 
-class GsiXrootd(Test):
+class GsiXroot(Test):
     def __init__(self,name,dictionary):
         Test.__init__(self,name,dictionary)
         self.write_test = """
@@ -332,6 +332,24 @@ class GsiXrootd(Test):
 #        """%(self.fqdn,
 #             self.port,
 #             os.path.join(self.path,self.input_filename))
+
+class GsiXroots(Test):
+    def __init__(self,name,dictionary):
+        Test.__init__(self,name,dictionary)
+        self.write_test = """                                                                                                    
+        xrdcp /tmp/%s  roots://%s:%s/%s                                                                                          
+        """%(self.input_filename,
+             self.fqdn,
+             self.port,
+             os.path.join(self.subpath,self.input_filename),)
+
+        self.read_test = """                                                                                                     
+        xrdcp roots://%s:%s/%s /tmp/%s                                                                                           
+        """%(self.fqdn,
+             self.port,
+             os.path.join(self.subpath,self.input_filename),
+             self.output_filename)
+
 
 class PlainXrootd(Test):
     def __init__(self,name,dictionary):
@@ -435,16 +453,15 @@ def createTest(name,dictionary):
         return Nfs(name,dictionary)
     elif family == "srm":
         return Srm(name,dictionary)
-    elif family == "root":
+    elif family == "xroot":
         port = dictionary.get("port")
-        #if port == 1094:
-        #    return GsiXrootd(name,dictionary)
-        #else:
-        #    return None
         if port == 1094:
-            return GsiXrootd(name,dictionary)
+            return GsiXroot(name,dictionary)
         else:
             return PlainXrootd(name,dictionary)
+    elif  family == "xroots":
+        port = dictionary.get("port")
+        return GsiXroots(name,dictionary)
     else:
         print("Protocol %s is not supported"%(family,))
         return None
