@@ -656,7 +656,10 @@ def select(con, sql, pars, cursor_factory=None):
     """
     cursor = None
     try:
-        cursor = con.cursor(cursor_factory=cursor_factory)
+        if cursor_factory:
+            cursor = con.cursor(cursor_factory=cursor_factory)
+        else:
+            cursor = con.cursor()
         cursor.execute(sql, pars)
         return cursor.fetchall()
     finally:
@@ -674,13 +677,13 @@ def get_label_system_inhibit(pool, label):
     connection = None
     try:
         connection = pool.connection()
-        res = select(connection, " select system_inhibit_0 from volume where label = %s", (label, ))
+        res = select(connection, "select system_inhibit_0 from volume where label = %s", (label, ))
         return res[0][0]
     except Exception as e:
-            print_error("%s Failed to query system inhibit for label %s " % (label, ))
+            print_error("%s Failed to query system inhibit for label %s " % (pool, label, ))
             pass
     except Exception as e:
-        print_error("%s Failed to get connection when querying system inhibit for label %s" % (label, ))
+        print_error("%s Failed to get connection when querying system inhibit for label %s" % (pool, label, ))
         pass
     finally:
         try:
