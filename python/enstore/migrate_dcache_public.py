@@ -71,10 +71,25 @@ FROM
    INNER JOIN FILE f ON fm.pnfsid = f.pnfs_id
    INNER JOIN volume v ON f.volume = v.id
    AND f.deleted = 'n'
-   AND v.media_type = 'LTO8'
+   AND v.media_type in ('LTO8', 'LTO9')
    AND fm.dst_bfid IS NULL) AS t
 WHERE t.src_bfid = file_migrate.src_bfid
   AND file_migrate.dst_bfid IS NULL
+"""
+
+SELECT_FOR_SFA_UPDATE = """
+SELECT f.bfid,
+       fm.dst_bfid
+FROM FILE f
+INNER JOIN file_migrate fm ON f.bfid = fm.src_bfid
+INNER JOIN FILE f1 ON f1.bfid = fm.dst_bfid
+WHERE f.package_id = f.bfid
+  AND fm.dst_bfid IS NOT NULL
+  AND f1.package_id IS NULL;
+"""
+
+SWAP_PACKAGE  = """
+select swap_package(%s, %s)
 """
 
 PROGRESS_SQL = """
@@ -105,7 +120,7 @@ SELECT to_char(sum(CASE
 FROM FILE f
 INNER JOIN volume v ON v.id = f.volume
 INNER JOIN file_migrate fm ON f.bfid = fm.src_bfid
-WHERE v.storage_group = '%s'
+WHERE v.storage_group = %s
 """
 
 
@@ -143,8 +158,19 @@ def updater():
         cursor = connection.cursor()
         cursor.execute(UPDATER_SQL)
         connection.commit()
+        
+
+        res = select(connection, 
+                     SELECT_FOR_SFA_UPDATE, 
+                     None,
+                     cursor_factory=psycopg2.extras.RealDictCursor)
+        for r in res:
+            cursor.execute(SWAP_PACKAGE, 
+                           (r.get("bfid"), r.get("dst_bfid")))
+            connection.commit()
+
         return 0
-    except:
+    except Exception as e:
         return 1
     finally:
         for i in (cursor, connection):
@@ -394,11 +420,16 @@ class StageWorker(multiprocessing.Process):
                                 database="chimera")
         while True:
             # before next label
-            precious_fraction = get_precious_fraction(ssh, self.pool)
-            while precious_fraction > 0.1:
-                print_message("%s pool has %d percent precious, sleeping" % (self.pool, int(precious_fraction * 100),))
-                time.sleep(600)
+            try:
                 precious_fraction = get_precious_fraction(ssh, self.pool)
+                while precious_fraction > 0.1:
+                    print_message("%s pool has %d percent precious, sleeping" % (self.pool, int(precious_fraction * 100),))
+                    time.sleep(600)
+                    precious_fraction = get_precious_fraction(ssh, self.pool)
+            except RuntimeError as e:
+                print_message("%s: Failed to query pool for spaces, sleeping, retrying" % (self.pool, ))
+                time.sleep(30)
+                continue
 
             label = self.stage_queue.get()
             if label is None:
@@ -424,7 +455,7 @@ class StageWorker(multiprocessing.Process):
                     cursor.execute("select f.bfid, f.pnfs_id, f.crc, f.size "
                                    "from file f inner join volume v on v.id = f.volume "
                                    "left outer join file_migrate fm on f.bfid = fm.src_bfid where v.label = %s "
-                                   "and f.deleted = 'n' and f.package_id is null and "
+                                   "and f.deleted = 'n' and "
                                    "fm.src_bfid is null order by f.location_cookie asc", (label, ))
                     res = cursor.fetchall()
                     if not res:
@@ -470,7 +501,7 @@ class StageWorker(multiprocessing.Process):
                         except Exception:
                             pass
             if not pnfs_mounted: 
-                print_error("%s %s %s: PNFS is not mounted, mount pnfs. Quitting" % (self.pool, label,))
+                print_error("%s %s: PNFS is not mounted, mount pnfs. Quitting" % (self.pool, label,))
                 self.stage_queue.task_done()
                 break
 
@@ -478,18 +509,33 @@ class StageWorker(multiprocessing.Process):
             total = number_of_files
             print("Doing label %s, number of files %d" % (label, number_of_files))
             cached = loop = count = 0
-            pools = get_active_pools_in_pool_group(ssh, POOL_GROUP)
+            pools = []
+            try: 
+                pools = get_active_pools_in_pool_group(ssh, POOL_GROUP)
+            except RuntimeError as e:
+                print_error("%s %s: Failed to query pools" % (self.pool, label, ))
+                continue
             while files:
                 count += 1 
                 bfid, pnfsid, crc, fsize = files.pop(0)
-                locations = get_locations(ssh, pnfsid)
+                locations = []
+                try:
+                    locations = get_locations(ssh, pnfsid)
+                except RuntimeError as e:
+                    print_error("%s %s: Failed to get locations for %s" % (self.pool, label, pnfsid, ))
+                    files.append((bfid, pnfsid, crc, fsize))
+                    continue
                 location = ""
                 for i in locations:
                     if i in pools:
                         location = i
                 if not location: 
                     files.append((bfid, pnfsid, crc, fsize))
-                    stage(ssh, self.pool, pnfsid)
+                    try:
+                        stage(ssh, self.pool, pnfsid)
+                    except RuntimeError as e:
+                        print_error("%s %s: Stage failed, %s, Sleeping 10 seconds", (self.pool, label, pnfsid,))
+                        time.sleep(10)
                 else:
                     # file is online
                     cached += 1
@@ -511,7 +557,11 @@ class StageWorker(multiprocessing.Process):
                             print_error("%s, %s : %s %s Failed to clear file cache location %s , %s" %
                                         (self.pool, label, bfid, pnfsid, location, str(e), ))
                         files.append((bfid, pnfsid, crc, fsize))
-                        stage(ssh, self.pool, pnfsid)
+                        try:
+                            stage(ssh, self.pool, pnfsid)
+                        except RuntimeError as e:
+                            print_error("%s %s: Stage failed, %s, Sleeping 10 seconds", (self.pool, label, pnfsid,))
+                            time.sleep(10)
 
                 if count == number_of_files and files:
                     loop += 1
@@ -588,7 +638,7 @@ def insert(con, sql, pars):
                 pass
 
 
-def select(con, sql, pars):
+def select(con, sql, pars, cursor_factory=None):
     """
     Select  database records
 
@@ -606,7 +656,10 @@ def select(con, sql, pars):
     """
     cursor = None
     try:
-        cursor = con.cursor()
+        if cursor_factory:
+            cursor = con.cursor(cursor_factory=cursor_factory)
+        else:
+            cursor = con.cursor()
         cursor.execute(sql, pars)
         return cursor.fetchall()
     finally:
@@ -624,13 +677,13 @@ def get_label_system_inhibit(pool, label):
     connection = None
     try:
         connection = pool.connection()
-        res = select(connection, " select system_inhibit_0 from volume where label = %s", (label, ))
+        res = select(connection, "select system_inhibit_0 from volume where label = %s", (label, ))
         return res[0][0]
     except Exception as e:
-            print_error("%s Failed to query system inhibit for label %s " % (label, ))
+            print_error("%s Failed to query system inhibit for label %s " % (pool, label, ))
             pass
     except Exception as e:
-        print_error("%s Failed to get connection when querying system inhibit for label %s" % (label, ))
+        print_error("%s Failed to get connection when querying system inhibit for label %s" % (pool, label, ))
         pass
     finally:
         try:
