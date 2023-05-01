@@ -15,15 +15,7 @@ import paramiko
 import psycopg2
 import psycopg2.extras
 
-
-
-#migration copy -permanent -storage=GM2.gm2_daq_run5 -tmode=same+admin(1209600) -sticky -smode=removable -select=random -target=pgroup GM2Pools
-#migration copy -permanent -concurrency=5 -tmode=same+admin(1209600) -sticky -smode=removable -select=random -target=pgroup GM2Pools
-#migration copy -permanent -concurrency=5 -tmode=same+admin(7776000) -sticky -smode=removable -select=random -target=pgroup GM2Pools
-
-HOUR = 3600 
-DAY = 24 * 3600 
-MONTH = 30 * DAY 
+#migration copy -permanent -storage=GM2.gm2_daq_run5 -tmode=same+admin(604800) -sticky -smode=removable -select=random -target=pgroup GM2Pools
 
 try:
     from DBUtils.PooledDB import PooledDB
@@ -137,9 +129,7 @@ def migrate(ssh, location, destination, pnfsid):
     """
     result = execute_admin_command(ssh,
                                    "\s " + location + " migration copy "
-                                   + "-tmode=same+admin(604800) "
-                                   + "-exclude=rw-stkendca2044*,rw-gm2-stkendca2044* "
-                                   + "-select=random " 
+                                   + "-tmode=same+admin(1209600) "
                                    + "-pnfsid=" + pnfsid 
                                    + " -target=pgroup " + destination)
 
@@ -161,12 +151,41 @@ def pin(ssh, pin, duration):
     else:
         return []
 
+def clear_file_cache_location(ssh, pool, pnfsid):
+    """
+    clear file cache location
+    """
+    result = execute_admin_command(ssh, "\sn clear file cache location  " + pnfsid + " " + pool)
+    print_message("Cleared file cache location %s %s %s" % (pnfsid, pool, result, ))
+    return True
 
 def mark_precious(ssh, pnfsid):
     """
     marks pnfsid on all locations as precious
     """
     result = execute_admin_command(ssh, "\sl " + pnfsid + " rep set precious " + pnfsid)
+    return True
+
+def set_sticky(ssh, pnfsid):
+    """
+    marks pnfsid on all locations as precious
+    """
+    result = execute_admin_command(ssh, "\sl " + pnfsid + " rep set sticky -o=admin -l=1209600000 " + pnfsid + " on")
+    return True
+
+def set_sticky_on_location(ssh, pool, pnfsid):
+    """
+    marks pnfsid on all locations as precious
+    """
+    result = execute_admin_command(ssh, "\s " + pool + " rep set sticky -l=1209600000 " + pnfsid + " on")
+    return True
+
+def unpin(ssh, pnfsid):
+    """
+    marks pnfsid on all locations as precious
+    """
+    result = execute_admin_command(ssh, "\sl " + pnfsid + " rep set sticky " + pnfsid + " off")
+    result = execute_admin_command(ssh, "\sl " + pnfsid + " rep set sticky -o=admin " + pnfsid + " off")
     return True
 
 def mark_precious_on_location(ssh, pool, pnfsid):
@@ -295,7 +314,7 @@ class StageWorker(multiprocessing.Process):
     def __init__(self, stage_queue, pool):
         super(StageWorker, self).__init__()
         self.stage_queue = stage_queue
-        self.pool = pool
+        self.pool = str(pool)
 
     def run(self):
         """
@@ -318,13 +337,6 @@ class StageWorker(multiprocessing.Process):
                         database="enstoredb")
 
         while True:
-            # before next label
-            precious_fraction = get_precious_fraction(ssh, self.pool)
-            while precious_fraction > 0.8:
-                print_message("%s pool has %d percent precious, sleeping" % (self.pool, int(precious_fraction * 100),))
-                time.sleep(600)
-                precious_fraction = get_precious_fraction(ssh, self.pool)
-
             label = self.stage_queue.get()
             if label is None:
                 print_message("%s: Exiting" % self.name)
@@ -386,7 +398,6 @@ class StageWorker(multiprocessing.Process):
             total = number_of_files
             print_message("Doing label %s, number of files %d" % (label, number_of_files))
             cached = loop = count = migrated = 0
-            pools = get_active_pools_in_pool_group(ssh, POOL_GROUP)
             while files:
                 count += 1
                 bfid, pnfsid, crc, fsize = files.pop(0)
@@ -395,52 +406,13 @@ class StageWorker(multiprocessing.Process):
                     locations = get_locations(ssh, pnfsid)
                 except:
                     pass
-                locations = [i for i in locations if i in pools]
                 if not locations:
-                    files.append((bfid, pnfsid, crc, fsize))
-                    try: 
-                        stage(ssh, self.pool, pnfsid)
-                    except RuntimeError as e:
-                        print_error("%s, %s : Failed to stage %s, sleeping 10 seconds " % (self.pool, label, pnfsid))
-                        time.sleep(10)
-                        continue
-                        
-                else:
-                    cached += 1
-#                    if len(locations) == 1:
-#                        repls = rep_ls(ssh, location, pnfsid)
-#                        if repls:
-#                            storage_class = repls[-1].split("=")[-1]
-#                            storage_class = re.sub("[\{\}]", "", storage_class)
-#                            destination = "readWritePools"
-#                            if storage_class in ("GM2.gm2_daq", "GM2.gm2_daq_run5",):
-#                                destination = "GM2Pools"
-#                            res = migrate(ssh, location, destination, pnfsid)
-#                            migrated += 1 
-##                            print_message("%s storage_class: %s %s %s" % (self.pool,
-#                                                                          storage_class, 
-#                                                                          destination,
-#                                                                          res,))
-                        
-                if count == number_of_files and files:
-                    loop += 1
-                    number_of_files = len(files)
-                    print_message("%s, %s : %d staged, %d migrated, %d total, %d remain,  %d pass" %
-                                  (self.pool, label, cached, migrated, total,  number_of_files, loop))
-                    count = 0
-                    #
-                    # Check that label is still OK
-                    #
-                    inhibit = get_label_system_inhibit(pool, label)
-                    if inhibit in ('NOACCESS', 'NOTALLOWED',):
-                        print_error("%s, %s : %s, Skipping " % (self.pool, label, inhibit, ))
-                        break
-                    print_message("%s, %s Sleeping" % (self.pool, label, ))
-                    pools = get_active_pools_in_pool_group(ssh, POOL_GROUP)
-                    time.sleep(600)
-
+                    continue
+                res = unpin(ssh, pnfsid)
+                print_message("%s, %s : Unpinned %s " % (self.pool, label, pnfsid,))
+                cached += 1 
             # label is done here
-            print_message("%s, %s : Done,  %d staged, %d migrated, %d total  " % (self.pool, label, cached, migrated, total))
+            print_message("%s, %s : Done,  %d unpinned, %d migrated, %d total  " % (self.pool, label, cached, migrated, total))
         ssh.close()
         return
 
@@ -645,11 +617,10 @@ def main():
     kinitWorker.start()
 
     ssh = get_shell()
-    pools = get_active_pools_in_pool_group(ssh, POOL_GROUP)
-    cpu_count = len(pools)
+    cpu_count = 10
     ssh.close()
 
-    for pool in pools:
+    for pool in range(cpu_count):
         worker = StageWorker(stage_queue, pool)
         stage_workers.append(worker)
         worker.start()
