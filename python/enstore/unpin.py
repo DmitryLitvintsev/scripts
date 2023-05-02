@@ -409,7 +409,6 @@ class StageWorker(multiprocessing.Process):
                 if not locations:
                     continue
                 res = unpin(ssh, pnfsid)
-                print_message("%s, %s : Unpinned %s " % (self.pool, label, pnfsid,))
                 cached += 1 
             # label is done here
             print_message("%s, %s : Done,  %d unpinned, %d migrated, %d total  " % (self.pool, label, cached, migrated, total))
