@@ -120,6 +120,8 @@ def rep_ls(ssh, location, pnfsid):
     """
     result = execute_admin_command(ssh, "\s " + location + " rep ls " + pnfsid)
     if result:
+        if result[0].find("Entry not in repository") != -1: 
+            return []
         return result[0].split()
     else:
         return []
@@ -157,7 +159,6 @@ def clear_file_cache_location(ssh, pool, pnfsid):
     clear file cache location
     """
     result = execute_admin_command(ssh, "\sn clear file cache location  " + pnfsid + " " + pool)
-    print_message("Cleared file cache location %s %s %s" % (pnfsid, pool, result, ))
     return True
 
 def mark_precious(ssh, pnfsid):
@@ -213,7 +214,6 @@ def clear_file_cache_location(ssh, pool, pnfsid):
     clear file cache location
     """
     result = execute_admin_command(ssh, "\sn clear file cache location  " + pnfsid + " " + pool)
-    print_message("Cleared file cache location %s %s %s" % (pnfsid, pool, result, ))
     return True
 
 def get_precious_fraction(ssh, pool):
@@ -442,7 +442,7 @@ class StageWorker(multiprocessing.Process):
                         except RuntimeError as e:
                             print_error("%s, %s : Failed to rep ls %s on location %s " % (self.pool, label, pnfsid, l))
                             rc = clear_file_cache_location(ssh, l, pnfsid)
-                            print_message("%s cleared %s cache location %s" %(self.pool, pnfsid, l,))
+                            print_message("%s %s cleared %s cache location %s" %(self.pool, label, pnfsid, l,))
                             #continue
                         if repls:
                             try:
@@ -456,12 +456,11 @@ class StageWorker(multiprocessing.Process):
                                                                                                 l))
                                 
                                 rc = clear_file_cache_location(ssh, l, pnfsid)
-                                print_message("%s cleared %s cache location %s" %(self.pool, pnfsid, l,))
+                                print_message("%s %s cleared %s cache location %s" %(self.pool, label, pnfsid, l,))
                                 continue
                         else:
                             rc = clear_file_cache_location(ssh, l, pnfsid)
-                            print_message("%s cleared %s cache location %s" %(self.pool, pnfsid, l,))
-                            continue
+                            print_message("%s %s cleared %s cache location %s" %(self.pool, label, pnfsid, l,))
                     if set_sticky:
                         cached += 1 
                     else:
@@ -487,13 +486,14 @@ class StageWorker(multiprocessing.Process):
                                 break
                             else:
                                 rc = clear_file_cache_location(ssh, l, pnfsid)
-                                print_message("%s cleared %s cache location %s" %(self.pool, pnfsid, l,))
+                                print_message("%s %s cleared %s cache location %s" %(self.pool, label, pnfsid, l,))
 
                         if not started_migration:
                             stage(ssh, self.pool, pnfsid)
 
                 if count == number_of_files and files:
                     loop += 1
+                    number_of_files = len(files)
                     print_message("%s, %s : %d staged, %d migrated, %d total, %d remain,  %d pass" %
                                   (self.pool, label, cached, migrated, total,  number_of_files, loop))
                     count = 0
