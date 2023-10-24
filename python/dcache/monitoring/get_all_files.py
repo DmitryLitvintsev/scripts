@@ -34,10 +34,10 @@ def execute_command(cmd):
     return (rc, output.decode("utf-8").strip().split("\n"))
     #return (rc, output.decode("utf-8").strip().replace(r"\r","\n").split("\n"))
 
-#_CMD1 = "ssh -p 24223 enstore@fndca3b.fnal.gov \"\s rw*,w* rep ls -s=b \" | sed -e '1d' | awk '{ print $1,$4,$5}'"
+#_CMD1 = "ssh -p 24223 enstore@fndca3b \"\s rw*,w* rep ls -s=b \" | sed -e '1d' | awk '{ print $1,$4,$5}'"
 
-#_CMD1 = "ssh -p 24223 enstore@fndcaitb3.fnal.gov \"\s rw-stkendca34a-* rep ls -s=b -noheader  \" "
-_CMD1 = "ssh -p 24223 enstore@fndca3b.fnal.gov \"\s rw*,w* rep ls -s=b  -noheader \" "
+#_CMD1 = "ssh -p 24223 enstore@fndcaitb3 \"\s rw-stkendca34a-* rep ls -s=b -noheader  \" "
+_CMD1 = "ssh -p 24223 enstore@fndca3b \"\s rw*,w* rep ls -s=b  -noheader \" "
 
 
 if __name__ == "__main__":
@@ -52,7 +52,7 @@ if __name__ == "__main__":
     args = parser.parse_args()
 
     if args.pgroup:
-        rc, data = execute_command(f"ssh -p 24223 enstore@fndca3b.fnal.gov \"\s PoolManager psu ls pgroup -a {args.pgroup}\"")
+        rc, data = execute_command(f"ssh -p 24223 enstore@fndca3b \"\s PoolManager psu ls pgroup -a {args.pgroup}\"")
         if rc != 0:
             print("Failed to connect to admin", file=sys.stderr)
             sys.exit(1)
@@ -67,7 +67,7 @@ if __name__ == "__main__":
                     continue
                 pools += i.strip().split()[0].strip() + ","
             pools = pools[:-1]
-            _CMD1 = f"ssh -p 24223 enstore@fndca3b.fnal.gov  \"\s {pools}  rep ls -s=b -noheader \" "
+            _CMD1 = f"ssh -p 24223 enstore@fndca3b  \"\s {pools}  rep ls -s=b -noheader \" "
 
 
     rc, data = execute_command(_CMD1)
