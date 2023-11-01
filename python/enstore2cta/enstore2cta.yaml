@@ -1,0 +1,6 @@
+disk_instance_name: "eosdev"
+tape_pool_name: "ctasystest"
+logical_library_name: "TS4500G1"
+cta_db: "postgresql://user:password@host:port/db_name"
+enstore_db: "postgresql://user:password@host:port/db_name"
+chimera_db: "postgresql://user:password@host:port/db_name"
