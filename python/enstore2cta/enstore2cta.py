@@ -658,10 +658,11 @@ def main():
     except (OSError, IOError) as e:
         if e.errno == errno.ENOENT:
             print_error("Config file %s does not exist" % (CONFIG_FILE,))
-            sys.exit(1)
+        sys.exit(1)
 
     if not configuration:
         print_error("Failed to load configuration %s" % (CONFIG_FILE,))
+        sys.exit(1)
 
     print (configuration)
 
