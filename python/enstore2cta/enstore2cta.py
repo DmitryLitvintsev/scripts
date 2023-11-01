@@ -512,6 +512,7 @@ class Worker(multiprocessing.Process):
                 print_message("%s Done, %d files" %(label, len(files),))
         except Exception as e:
             print_message("Exception %s" % (str(e)))
+        finally:
             for i in (enstore_db, cta_db, chimera_db):
                 if i:
                     try:
