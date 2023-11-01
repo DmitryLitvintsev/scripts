@@ -457,6 +457,7 @@ insert into t_locationinfo (inumber, itype, ipriority, ictime, iatime, istate, i
 
 def insert_chimera_location(connection, enstore_file, location):
     res = insert(connection,
+                 INSERT_CHIMERA_LOCATION,
                  (enstore_file["pnfs_id"],
                   location,))
     return res
