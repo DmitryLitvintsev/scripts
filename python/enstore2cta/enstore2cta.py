@@ -82,8 +82,8 @@ select f.*,
        v.storage_group||'.'||v.file_family||'@cta' as storage_class,
        f1.bfid as copy_bfid,
        f1.location_cookie as copy_location_cookie,
-       v1.* 
-from file f 
+       v1.*
+from file f
 inner join volume v on v.id = f.volume
 left outer join file_copies_map fcm on fcm.bfid = f.bfid
 left outer join file f1 on f1.bfid = fcm.alt_bfid
@@ -418,7 +418,7 @@ insert into tape (
            %s,
            %s,
            %s,
-           'Migrated from Enstore: '||%s,
+           %s,
            'ACTIVE',
            'Migrated from Enstore',
            %s,
@@ -451,7 +451,7 @@ def insert_cta_tape(connection, enstore_volume, config):
                      int(time.mktime(enstore_volume["last_access"].timetuple())),
                      min(enstore_volume["sum_rd_access"], enstore_volume["sum_mounts"]),
                      min(enstore_volume["sum_wr_access"], enstore_volume["sum_mounts"]),
-                     enstore_volume["comment"],
+                     ("Migrated from Enstore: %s" % (enstore_volume["comment"],))[:1000],
                      int(time.time()),
                      getpass.getuser(),
                      getpass.getuser(),
@@ -536,8 +536,8 @@ class Worker(multiprocessing.Process):
                 try:
                     res = insert_cta_tape(cta_db, enstore_volume, self.config)
                 except Exception as e:
-                    print_error("%s already exist, skipping" %
-                                (enstore_volume["label"], ))
+                    print_error("%s already exist, skipping, %s " %
+                                (enstore_volume["label"], str(e)))
                     continue
                 files = select(enstore_db,
                                SELECT_ENSTORE_FILES_FOR_VOLUME_WITH_COPY,
@@ -560,7 +560,7 @@ class Worker(multiprocessing.Process):
                                                           f,
                                                           self.config)
                                     print_message("%s added label containing "
-                                                  "copies  %s" % (label, 
+                                                  "copies  %s" % (label,
                                                                   copy_label,))
                                 except Exception as e:
                                     print_error("%s volume %s already exists, "
@@ -574,7 +574,7 @@ class Worker(multiprocessing.Process):
                                                           self.config)
                             except Exception as e:
                                 print_error("%s Failed to insert tape_file, %s"
-                                            " %s %s %s, skipping %s" % 
+                                            " %s %s %s, skipping %s" %
                                             (label,
                                              f["label"],
                                              f["pnfs_id"],
@@ -582,7 +582,7 @@ class Worker(multiprocessing.Process):
                                              f["copy_bfid"],
                                              str(e)))
                                 pass
-                        
+
                         location = "cta://cta/%s?archiveid=%d" %\
                                    (f["pnfs_id"],
                                    archive_file_id,)
@@ -787,8 +787,8 @@ def main():
 
     enstore_db = create_connection(configuration.get("enstore_db"))
     cta_db = create_connection(configuration.get("cta_db"))
-    insert_vos(enstore_db, cta_db, disk_instance_name=configuration.get("disk_instance_name"))
-    insert_storage_classes(enstore_db, cta_db)
+    #insert_vos(enstore_db, cta_db, disk_instance_name=configuration.get("disk_instance_name"))
+    #insert_storage_classes(enstore_db, cta_db)
     enstore_db.close()
     cta_db.close()
 
