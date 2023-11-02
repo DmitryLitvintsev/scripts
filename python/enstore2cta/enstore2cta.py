@@ -66,6 +66,8 @@ select label from volume
         system_inhibit_0 = 'none' and
         library not like 'shelf%' and
         file_family not like '%_copy_1' and
+        file_family_not like '%-MIGRATION' and
+        file_family_not like '%-MIGRATION2' and
         active_files > 0 and
         storage_group = 'cms'
         order by label asc
