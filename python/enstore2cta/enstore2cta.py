@@ -35,7 +35,8 @@ if not CONFIG_FILE:
 HOSTNAME = socket.gethostname()
 
 SELECT_STORAGE_CLASSES = """
-select distinct storage_group||'.'||file_family||'@cta' as storage_class from volume
+select distinct storage_group||'.'||file_family||'@cta' as storage_class
+from volume
   where active_files>0 and
         system_inhibit_0 = 'none' and
         library not like 'shelf%' and
@@ -65,8 +66,28 @@ select label from volume
 """
 
 SELECT_ENSTORE_FILES_FOR_VOLUME = """
-select f.*, v.storage_group||'.'||v.file_family||'@cta' as storage_class from file f inner join volume v
+select f.*, v.storage_group||'.'||v.file_family||'@cta' as storage_class
+from file f inner join volume v
   on v.id = f.volume
+  where
+        v.media_type in ('LTO8', 'M8', 'LTO9') and
+        v.system_inhibit_0 = 'none' and
+        v.label = %s and
+        v.active_files > 0 and
+        f.deleted = 'n'
+"""
+
+SELECT_ENSTORE_FILES_FOR_VOLUME_WITH_COPY = """
+select f.*,
+       v.storage_group||'.'||v.file_family||'@cta' as storage_class,
+       f1.bfid as copy_bfid,
+       f1.location_cookie as copy_location_cookie,
+       v1.* 
+from file f 
+inner join volume v on v.id = f.volume
+left outer join file_copies_map fcm on fcm.bfid = f.bfid
+left outer join file f1 on f1.bfid = fcm.alt_bfid
+left outer join volume v1 on v1.id = f1.volume
   where
         v.media_type in ('LTO8', 'M8', 'LTO9') and
         v.system_inhibit_0 = 'none' and
@@ -138,7 +159,7 @@ CRC_SWITCH = '2019-08-21 09:54:26'
 
 def get_switch_epoch():
     """
-    Figure out the timestamp when the change from 0 to 1 based adler checksum happened
+    Timestamp when the change from 0 to 1 based adler checksum happened
     """
     time_format = '%Y-%m-%d %H:%M:%S'
     os.environ['TZ'] = 'America/Chicago'
@@ -321,7 +342,7 @@ def insert_cta_file(connection, enstore_file, cta_label, config):
                                     enstore_file["gid"],
                                     file_size,
                                     file_crc,
-                                    enstore_file["storage_class"], # "ssa_test.diskSF1T_in_LTO8G1T.cpio_odc@cta",
+                                    enstore_file["storage_class"],
                                     file_create_time,
                                     int(time.time()),
                                     '0'
@@ -338,6 +359,25 @@ def insert_cta_file(connection, enstore_file, cta_label, config):
                      archive_file_id))
     return archive_file_id
 
+def insert_cta_tape_file_copy(connection,
+                              archive_file_id,
+                              enstore_file,
+                              config):
+    file_create_time = int(enstore_file["copy_bfid"][4:14])
+    file_size = enstore_file["size"]
+    file_crc = enstore_file["crc"]
+    if file_create_time < get_switch_epoch():
+        file_crc =  convert_0_adler32_to_1_adler32(file_crc, file_size)
+
+    res = insert(connection,
+                 INSERT_TAPE_FILE, (
+                     enstore_file["label"][:6],
+                     extract_file_number(enstore_file["copy_location_cookie"]),
+                     extract_file_number(enstore_file["copy_location_cookie"]),
+                     enstore_file["size"],
+                     2, # copy number
+                     file_create_time,
+                     archive_file_id))
 
 INSERT_CTA_TAPE = """
 insert into tape (
@@ -398,7 +438,7 @@ def insert_cta_tape(connection, enstore_volume, config):
                  INSERT_CTA_TAPE,(
                      enstore_volume["label"][:6],
                      media_type_map[enstore_volume["media_type"]],
-                     config.get("logical_library_name"),
+                     config.get("logical_library_name"), #FIXME - need to map Enstore LMs to CTA logical libraries
                      config.get("tape_pool_name"),
                      enstore_volume["active_bytes"],
                      extract_file_number(enstore_volume["eod_cookie"]) - 1,
@@ -425,7 +465,8 @@ def insert_cta_tape(connection, enstore_volume, config):
 
 
 SELECT_CTA_LOCATION = """
-select 'cta://cta/'||af.disk_file_id||'?archiveid='||af.archive_file_id as location from archive_file af
+select 'cta://cta/'||af.disk_file_id||'?archiveid='||af.archive_file_id as
+location from archive_file af
         INNER JOIN tape_file tf on tf.archive_file_id = af.archive_file_id
   WHERE
       af.disk_file_id = %s
@@ -481,6 +522,7 @@ class Worker(multiprocessing.Process):
             # chimera_db
             chimera_db = create_connection(self.config.get("chimera_db"))
 
+            added_copy_volumes = set()
             for label in iter(self.queue.get, None):
                 cta_label = label[:6]
                 print_message("Doing label %s" % (label, ))
@@ -494,15 +536,56 @@ class Worker(multiprocessing.Process):
                 try:
                     res = insert_cta_tape(cta_db, enstore_volume, self.config)
                 except Exception as e:
-                    print_error("%s already exist, skipping" % (enstore_volume["label"], ))
+                    print_error("%s already exist, skipping" %
+                                (enstore_volume["label"], ))
                     continue
                 files = select(enstore_db,
-                               SELECT_ENSTORE_FILES_FOR_VOLUME,
+                               SELECT_ENSTORE_FILES_FOR_VOLUME_WITH_COPY,
                                (label, ))
                 for f in files:
                     try:
-                        archive_file_id = insert_cta_file(cta_db, f, cta_label, self.config)
-                        location = "cta://cta/%s?archiveid=%d" % (f["pnfs_id"], archive_file_id,)
+                        archive_file_id = insert_cta_file(cta_db,
+                                                          f,
+                                                          cta_label,
+                                                          self.config)
+                        #
+                        # do we have a copy
+                        #
+                        copy_label = f.get("label")
+                        if copy_label:
+                            if copy_label not in added_copy_volumes:
+                                added_copy_volumes.add(copy_label)
+                                try:
+                                    res = insert_cta_tape(cta_db,
+                                                          f,
+                                                          self.config)
+                                    print_message("%s added label containing "
+                                                  "copies  %s" % (label, 
+                                                                  copy_label,))
+                                except Exception as e:
+                                    print_error("%s volume %s already exists, "
+                                                "skipping %s" %
+                                                (label, f["label"], str(e)))
+                                    pass
+                            try:
+                                insert_cta_tape_file_copy(cta_db,
+                                                          archive_file_id,
+                                                          f,
+                                                          self.config)
+                            except Exception as e:
+                                print_error("%s Failed to insert tape_file, %s"
+                                            " %s %s %s, skipping %s" % 
+                                            (label,
+                                             f["label"],
+                                             f["pnfs_id"],
+                                             f["bfid"],
+                                             f["copy_bfid"],
+                                             str(e)))
+                                pass
+                        
+                        location = "cta://cta/%s?archiveid=%d" %\
+                                   (f["pnfs_id"],
+                                   archive_file_id,)
                     except Exception as e:
                         print_error("%s, multiple pnfsid, skipping %s, %s" %
                                     (enstore_volume["label"], f["pnfs_id"], str(e)))
@@ -644,8 +727,6 @@ def main():
     """
     main function
     """
-
-
     configuration = None
     try:
         mode = os.stat(CONFIG_FILE).st_mode
