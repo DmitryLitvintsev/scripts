@@ -55,11 +55,17 @@ select distinct storage_group from volume
         file_family not like '%-MIGRATION2'
 """
 
+#
+# pick up only "primary" volmes that do nopt have
+# '_copy_1' suffix in file_family name
+#
+
 SELECT_ALL_ENSTORE_VOLUMES = """
 select label from volume
   where media_type in ('LTO8', 'M8', 'LTO9') and
         system_inhibit_0 = 'none' and
         library not like 'shelf%' and
+        file_family not like '%_copy_1' and
         active_files > 0 and
         storage_group = 'cms'
         order by label asc
