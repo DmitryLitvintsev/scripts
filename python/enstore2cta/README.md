@@ -22,7 +22,7 @@ with `--all` switch to migrate all labels. The migratoin is done by label.
 Configuration
 --------------
 
-Script expects configuration file `enstore2cta.yaml` in current directory or pointed to by environment variable `MIGRATION_CONFIG`. The script has to have "0600" permission bits and has to have the following parameters defned:
+Script expects configuration file `enstore2cta.yaml` in current directory or pointed to by environment variable `MIGRATION_CONFIG`. The yaml file has to have "0600" permission bits and has to have the following parameters defned:
 
 ```
 disk_instance_name: "Fermilab"   # CTA dsk instance name, needs to be defined in advance in CTA
