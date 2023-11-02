@@ -787,8 +787,8 @@ def main():
 
     enstore_db = create_connection(configuration.get("enstore_db"))
     cta_db = create_connection(configuration.get("cta_db"))
-    #insert_vos(enstore_db, cta_db, disk_instance_name=configuration.get("disk_instance_name"))
-    #insert_storage_classes(enstore_db, cta_db)
+    insert_vos(enstore_db, cta_db, disk_instance_name=configuration.get("disk_instance_name"))
+    insert_storage_classes(enstore_db, cta_db)
     enstore_db.close()
     cta_db.close()
 
