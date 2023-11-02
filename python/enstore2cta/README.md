@@ -39,9 +39,9 @@ Additionally the following media names need to be defined in CTA : `LTO7M', `LTO
 Limitation
 ----------
 
-At this moment all data will be associated with single `logical_library_name`. In the future mapping between
+* At this moment all data will be associated with single `logical_library_name`. In the future mapping between
 Enstor LMs and CTA logical libraries.
 
-Script uses single tape pool defined in yaml file.
+* Script uses single tape pool defined in yaml file.
 
-Counts of file copies on tape volumes are not updated. This can be done by a single update query after script has completed.
+* Counts of file copies on tape volumes are not updated. This can be done by a single update query after script has completed.

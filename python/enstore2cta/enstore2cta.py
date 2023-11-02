@@ -593,12 +593,17 @@ class Worker(multiprocessing.Process):
                         location = "cta://cta/%s?archiveid=%d" %\
                                    (f["pnfs_id"],
                                    archive_file_id,)
+                        try:
+                            res = insert_chimera_location(chimera_db, f, location)
+                        except Exception as e:
+                             print_error("%s %s failed to insert location %s, %s" %
+                                         (label, f["pnfs_id"], location, str(e),))
+                             pass
+
                     except Exception as e:
                         print_error("%s, multiple pnfsid, skipping %s, %s" %
                                     (enstore_volume["label"], f["pnfs_id"], str(e)))
                         continue
-                    #print_message("%s : %s %s " % (cta_label, f["pnfs_id"], location))
-                    #res = insert_chimera_location(chimera_db, f, location)
                 print_message("%s Done, %d files" %(label, len(files),))
         except Exception as e:
             print_message("Exception %s" % (str(e)))
