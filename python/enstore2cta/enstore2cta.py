@@ -827,7 +827,7 @@ def main():
 
 
     print_message("**** FINISH ****")
-    print_message("Took %f seconds" % (time.time()-t0,))
+    print_message("Took %d seconds" % (int(time.time()-t0+0.5),))
 
 if __name__ == "__main__":
     main()
