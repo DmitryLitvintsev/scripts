@@ -802,6 +802,7 @@ def main():
 
 
     print_message("**** Start processing %d  labels ****" % (len(labels), ))
+    t0 = time.time()
 
     queue = multiprocessing.Queue(10000)
     workers = []
@@ -822,7 +823,7 @@ def main():
 
 
     print_message("**** FINISH ****")
-
+    print_message("Took %f seconds" % (time.time()-t0,))
 
 if __name__ == "__main__":
     main()
