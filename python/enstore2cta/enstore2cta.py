@@ -69,7 +69,6 @@ select label from volume
         file_family not like '%-MIGRATION' and
         file_family not like '%-MIGRATION2' and
         active_files > 0 and
-        storage_group = 'cms'
         order by label asc
 """
 
