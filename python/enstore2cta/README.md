@@ -1,6 +1,12 @@
 enstore2cta - Enstore to CTA migration script
 =============================================
 
+Requirements
+------------
+
+Script works both with python2 and python3 and requires `psycopg2` module be installed (using `pip` or `yum install python-psycopg2`). 
+
+
 Invocation
 ----------
 
