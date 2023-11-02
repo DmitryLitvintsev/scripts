@@ -33,7 +33,7 @@ enstore_db: "postgresql://user:password@host:port/db_name"     # Enstore DB conn
 chimera_db: "postgresql://user:password@host:port/db_name"     # Chimera DB connection string, needs write access
 ```
 
-Additionally the following media names need to be defined in CTA : `LTO7M', `LTO8`, `LTO9`.
+Additionally the following media names need to be defined in CTA : LTO7M, LTO8, LTO9.
 
 
 Limitation
