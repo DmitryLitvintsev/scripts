@@ -67,7 +67,7 @@ select label from volume
         file_family not like '%_copy_1' and
         file_family not like '%-MIGRATION' and
         file_family not like '%-MIGRATION2' and
-        active_files > 0 and
+        active_files > 0
         order by label asc
 """
 
