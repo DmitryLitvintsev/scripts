@@ -31,10 +31,10 @@ kinitLock = multiprocessing.Lock()
 UUID = str(uuid.uuid4())
 
 """
-The SQL below creates table in Enstore database 
-to keep track of migration. This script does not 
+The SQL below creates table in Enstore database
+to keep track of migration. This script does not
 run this query. IT has to be run in advance. Only once
-(cut&past, execute from sql prompt) 
+(cut&past, execute from sql prompt)
 
 -- DROP TABLE IF EXISTS file_migrate;
 CREATE TABLE file_migrate (
@@ -73,14 +73,15 @@ FROM
    INNER JOIN FILE f ON fm.pnfsid = f.pnfs_id
    INNER JOIN volume v ON f.volume = v.id
    AND f.deleted = 'n'
-   AND v.library = 'TFF2-LTO9M' 
+   AND v.library = 'TFF2-LTO9M'
+   AND v.file_family like '%MIGRATION2'
    AND fm.dst_bfid IS NULL) AS t
 WHERE t.src_bfid = file_migrate.src_bfid
   AND file_migrate.dst_bfid IS NULL
 """
 
 SELECT_FOR_SFA_UPDATE = """
-SELECT f.bfid, 
+SELECT f.bfid,
        fm.dst_bfid
 FROM FILE f
 INNER JOIN file_migrate fm ON f.bfid = fm.src_bfid
@@ -169,14 +170,14 @@ def updater():
         cursor = connection.cursor()
         cursor.execute(UPDATER_SQL)
         connection.commit()
-        
 
-        res = select(connection, 
-                     SELECT_FOR_SFA_UPDATE, 
+
+        res = select(connection,
+                     SELECT_FOR_SFA_UPDATE,
                      None,
                      cursor_factory=psycopg2.extras.RealDictCursor)
         for r in res:
-            cursor.execute(SWAP_PACKAGE, 
+            cursor.execute(SWAP_PACKAGE,
                            (r.get("bfid"), r.get("dst_bfid")))
             connection.commit()
             cursor.execute(UPDATE_STATUS, (r.get("dst_bfid"),))
@@ -259,7 +260,7 @@ def is_cached(ssh, pnfsid):
         return True
 
 
-def get_locations(ssh, pnfsid): 
+def get_locations(ssh, pnfsid):
     result = execute_admin_command(ssh, "\sn cacheinfoof " + pnfsid)
     if result:
         return result[0].split()
@@ -277,7 +278,7 @@ def mark_precious(ssh, pnfsid):
 
 def mark_precious_on_location(ssh, pool, pnfsid):
     """
-    marks pnfsid on a pool as precious 
+    marks pnfsid on a pool as precious
     """
     result = execute_admin_command(ssh, "\s " + pool + " rep set precious " + pnfsid)
     print_message("Marked precious %s %s %s" % (pnfsid, pool, result, ))
@@ -315,14 +316,14 @@ def get_active_pools_in_pool_group(ssh, pgroup):
     hasPoolList = False
     for line in result:
         i = line.strip()
-        if not i: 
+        if not i:
             continue
         if i.strip().startswith("poolList :"):
             hasPoolList = True
             continue
-        if hasPoolList: 
+        if hasPoolList:
             parts = i.split()
-            if parts[1].find("mode=disabled") != -1: 
+            if parts[1].find("mode=disabled") != -1:
                 continue
             pool = parts[0].strip()
             pools.append(pool)
@@ -488,7 +489,7 @@ class StageWorker(multiprocessing.Process):
                                         print_error("%s %s %s Does not exist, mark deleted "%(label, i[0], i[1]))
                                         cursor.execute("update file set deleted = 'y' where bfid = %s", (i[0],))
                                         connection.commit()
-                                    else: 
+                                    else:
                                         pnfs_mounted = False
                                         break
                                 except Exception as e:
@@ -513,7 +514,7 @@ class StageWorker(multiprocessing.Process):
                             i.close()
                         except Exception:
                             pass
-            if not pnfs_mounted: 
+            if not pnfs_mounted:
                 print_error("%s %s: PNFS is not mounted, mount pnfs. Quitting" % (self.pool, label,))
                 self.stage_queue.task_done()
                 break
@@ -523,13 +524,13 @@ class StageWorker(multiprocessing.Process):
             print("Doing label %s, number of files %d" % (label, number_of_files))
             cached = loop = count = 0
             pools = []
-            try: 
+            try:
                 pools = get_active_pools_in_pool_group(ssh, POOL_GROUP)
             except RuntimeError as e:
                 print_error("%s %s: Failed to query pools" % (self.pool, label, ))
                 continue
             while files:
-                count += 1 
+                count += 1
                 bfid, pnfsid, crc, fsize = files.pop(0)
                 locations = []
                 try:
@@ -542,7 +543,7 @@ class StageWorker(multiprocessing.Process):
                 for i in locations:
                     if i in pools:
                         location = i
-                if not location: 
+                if not location:
                     files.append((bfid, pnfsid, crc, fsize))
                     try:
                         stage(ssh, self.pool, pnfsid)
@@ -581,9 +582,9 @@ class StageWorker(multiprocessing.Process):
                     number_of_files = len(files)
                     print_message("%s, %s : %d staged, %d total, %d remain,  %d pass" %
                                   (self.pool, label, cached, total,  number_of_files, loop))
-                    count = 0 
+                    count = 0
                     #
-                    # Check that label is still OK 
+                    # Check that label is still OK
                     #
                     inhibit = get_label_system_inhibit(pool, label)
                     if inhibit in ('NOACCESS', 'NOTALLOWED',):
@@ -683,7 +684,7 @@ def select(con, sql, pars, cursor_factory=None):
                 pass
 
 
-def get_label_system_inhibit(pool, label): 
+def get_label_system_inhibit(pool, label):
     """
     get label status
     """
@@ -736,7 +737,7 @@ def bust_layers(pool, entry):
         except Exception:
             pass
     return False
-        
+
 
 def mark_migrated(pool, entry):
     """
@@ -802,7 +803,7 @@ def main():
         help="print overall migration progress by storage group")
 
     parser.add_argument(
-        "--sg", 
+        "--sg",
         help="storage group")
 
     parser.add_argument(
@@ -810,7 +811,7 @@ def main():
         help="run updater")
 
     args = parser.parse_args()
-    
+
     if args.progress:
         if args.sg:
             print_progress(args.sg)
@@ -870,7 +871,7 @@ def main():
 
     stage_queue.join()
 
-    kinitWorker.stop = True 
+    kinitWorker.stop = True
     kinitWorker.terminate()
 
     print_message("**** FINISH ****")
@@ -878,4 +879,3 @@ def main():
 
 if __name__ == "__main__":
     main()
-
