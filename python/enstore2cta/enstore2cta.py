@@ -25,7 +25,6 @@ except ModuleNotFoundError:
 
 
 DISK_INSTANCE_NAME = "eosdev"
-LOGICAL_LIBRARY_NAME = "TS4500G1"
 TAPE_POOL_NAME = "ctasystest"
 
 CONFIG_FILE = os.getenv("MIGRATION_CONFIG")
@@ -451,9 +450,9 @@ def insert_cta_tape(connection, enstore_volume, config):
     res = insert(connection,
                  INSERT_CTA_TAPE,(
                      enstore_volume["label"][:6],
-                     media_type_map[enstore_volume["media_type"]],
-                     config.get("logical_library_name"), #FIXME - need to map Enstore LMs to CTA logical libraries
-                     config.get("tape_pool_name"),
+                     config.get("media_type_map")[enstore_volume["media_type"]],
+                     config.get("library_map")[enstore_volume["library"]],
+                     config.get("tape_pool_name"), #FIXME
                      enstore_volume["active_bytes"],
                      extract_file_number(enstore_volume["eod_cookie"]) - 1,
                      enstore_volume["active_files"],
@@ -747,28 +746,12 @@ def main():
     """
     main function
     """
-    configuration = None
-    try:
-        mode = os.stat(CONFIG_FILE).st_mode
-        if mode != 33152:
-            print_error("Access to config file file %s is too permissive" %
-                        (CONFIG_FILE,))
-            sys.exit(1)
-        with open(CONFIG_FILE, "r") as f:
-            configuration = yaml.safe_load(f)
-    except (OSError, IOError) as e:
-        if e.errno == errno.ENOENT:
-            print_error("Config file %s does not exist" % (CONFIG_FILE,))
-        sys.exit(1)
-
-    if not configuration:
-        print_error("Failed to load configuration %s" % (CONFIG_FILE,))
-        sys.exit(1)
-
-    print (configuration)
-
-    parser = argparse.ArgumentParser()
-
+    parser = argparse.ArgumentParser(
+        description="This script converts Enstore metadata to CTA metadata. "
+        "It looks for YAML configuration file pointed to by MIGRATION_CONFIG "
+        "environment variable or, if it is not defined, it looks for file enstore2cta.yaml "
+        "in current directory. Script will quit if configuration YAML is not found. "
+        )
 
     parser.add_argument(
         "--label",
@@ -788,6 +771,26 @@ def main():
     if not args.label and not args.all:
         parser.print_help(sys.stderr)
         sys.exit(1)
+
+    configuration = None
+    try:
+        mode = os.stat(CONFIG_FILE).st_mode
+        if mode != 33152:
+            print_error("Access to config file file %s is too permissive" %
+                        (CONFIG_FILE,))
+            sys.exit(1)
+        with open(CONFIG_FILE, "r") as f:
+            configuration = yaml.safe_load(f)
+    except (OSError, IOError) as e:
+        if e.errno == errno.ENOENT:
+            print_error("Config file %s does not exist" % (CONFIG_FILE,))
+        sys.exit(1)
+
+    if not configuration:
+        print_error("Failed to load configuration %s" % (CONFIG_FILE,))
+        sys.exit(1)
+
+    print (configuration)
 
     labels = None
     if args.label:
