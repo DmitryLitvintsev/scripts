@@ -32,7 +32,7 @@ CONFIG_FILE = os.getenv("MIGRATION_CONFIG")
 if not CONFIG_FILE:
     CONFIG_FILE = "enstore2cta.yaml"
 
-HOSTNAME = socket.gethostname()
+HOSTNAME = socket.getfqdn()
 
 SELECT_STORAGE_CLASSES = """
 select distinct storage_group||'.'||file_family||'@cta' as storage_class
@@ -342,7 +342,10 @@ def insert_cta_file(connection, enstore_file, cta_label, config):
     file_create_time = int(enstore_file["bfid"][4:14])
     file_size = enstore_file["size"]
     file_crc = enstore_file["crc"]
-    if file_create_time < get_switch_epoch():
+    #
+    # take care of "adler32 seeed 0" nonsense
+    #
+    if file_create_time < get_switch_epoch() and HOSTNAME.endswith(".fnal.gov"):
         file_crc =  convert_0_adler32_to_1_adler32(file_crc, file_size)
 
     cta_file = insert_returning(connection,
