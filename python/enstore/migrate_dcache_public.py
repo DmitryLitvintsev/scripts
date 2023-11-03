@@ -74,6 +74,7 @@ FROM
    INNER JOIN volume v ON f.volume = v.id
    AND f.deleted = 'n'
    AND v.file_family like '%MIGRATION2'
+   AND v.library = 'TFF2-LTO9M'
    AND fm.dst_bfid IS NULL) AS t
 WHERE t.src_bfid = file_migrate.src_bfid
   AND file_migrate.dst_bfid IS NULL
@@ -90,6 +91,7 @@ WHERE f.package_id = f.bfid
   AND fm.dst_bfid IS NOT NULL
   AND f1.package_id IS NULL
   AND v.file_family like '%MIGRATION2'
+  AND v.library = 'TFF2-LTO9M'
 """
 
 SWAP_PACKAGE  = """
