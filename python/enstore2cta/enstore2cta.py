@@ -366,7 +366,7 @@ def insert_cta_file(connection, enstore_file, cta_label, config):
                      cta_label,
                      extract_file_number(enstore_file["location_cookie"]),
                      extract_file_number(enstore_file["location_cookie"]),
-                     enstore_file["size"],
+                     file_size,
                      1,
                      file_create_time,
                      archive_file_id))
@@ -377,10 +377,6 @@ def insert_cta_tape_file_copy(connection,
                               enstore_file,
                               config):
     file_create_time = int(enstore_file["copy_bfid"][4:14])
-    file_size = enstore_file["size"]
-    file_crc = enstore_file["crc"]
-    if file_create_time < get_switch_epoch():
-        file_crc =  convert_0_adler32_to_1_adler32(file_crc, file_size)
 
     res = insert(connection,
                  INSERT_TAPE_FILE, (
