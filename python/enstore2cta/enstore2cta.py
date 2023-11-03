@@ -36,22 +36,22 @@ HOSTNAME = socket.getfqdn()
 SELECT_STORAGE_CLASSES = """
 select distinct storage_group||'.'||file_family||'@cta' as storage_class
 from volume
-  where active_files>0 and
-        system_inhibit_0 = 'none' and
-        library not like 'shelf%' and
-        file_family not like '%_copy_1' and
-        file_family not like '%-MIGRATION' and
-        file_family not like '%-MIGRATION2'
+  where active_files>0
+        and system_inhibit_0 = 'none'
+        and library not like 'shelf%'
+        and file_family not like '%_copy_1'
+        and file_family not like '%-MIGRATION'
+        and file_family not like '%-MIGRATION2'
 """
 
 SELECT_VOS = """
 select distinct storage_group from volume
-  where active_files>0 and
-        system_inhibit_0 = 'none' and
-        library not like 'shelf%' and
-        file_family not like '%_copy_1' and
-        file_family not like '%-MIGRATION' and
-        file_family not like '%-MIGRATION2'
+  where active_files>0
+        and system_inhibit_0 = 'none'
+        and library not like 'shelf%'
+        and file_family not like '%_copy_1'
+        and file_family not like '%-MIGRATION'
+        and file_family not like '%-MIGRATION2'
 """
 
 #
@@ -61,13 +61,13 @@ select distinct storage_group from volume
 
 SELECT_ALL_ENSTORE_VOLUMES = """
 select label from volume
-  where media_type in ('LTO8', 'M8', 'LTO9') and
-        system_inhibit_0 = 'none' and
-        library not like 'shelf%' and
-        file_family not like '%_copy_1' and
-        file_family not like '%-MIGRATION' and
-        file_family not like '%-MIGRATION2' and
-        active_files > 0
+  where media_type in ('LTO8', 'M8', 'LTO9')
+        and system_inhibit_0 = 'none'
+        and library not like 'shelf%'
+        and file_family not like '%_copy_1'
+        and file_family not like '%-MIGRATION'
+        and file_family not like '%-MIGRATION2'
+        and active_files > 0
         order by label asc
 """
 
@@ -76,11 +76,11 @@ select f.*, v.storage_group||'.'||v.file_family||'@cta' as storage_class
 from file f inner join volume v
   on v.id = f.volume
   where
-        v.media_type in ('LTO8', 'M8', 'LTO9') and
-        v.system_inhibit_0 = 'none' and
-        v.label = %s and
-        v.active_files > 0 and
-        f.deleted = 'n'
+        v.media_type in ('LTO8', 'M8', 'LTO9')
+        and v.system_inhibit_0 = 'none'
+        and v.label = %s
+        and v.active_files > 0
+        and f.deleted = 'n'
         order by f.location_cookie
 """
 
@@ -97,12 +97,12 @@ left outer join file_copies_map fcm on fcm.bfid = f.bfid
 left outer join file f1 on f1.bfid = fcm.alt_bfid
 left outer join volume v1 on v1.id = f1.volume
   where
-        v.media_type in ('LTO8', 'M8', 'LTO9') and
-        v.system_inhibit_0 = 'none' and
-        v.label = %s and
-        v.active_files > 0 and
-        (f1.deleted is null or f1.deleted = 'n') and
-        f.deleted = 'n'
+        v.media_type in ('LTO8', 'M8', 'LTO9')
+        and v.system_inhibit_0 = 'none'
+        and v.label = %s
+        and v.active_files > 0
+        and (f1.deleted is null or f1.deleted = 'n')
+        and f.deleted = 'n'
         order by f.pnfs_id
 """
 
