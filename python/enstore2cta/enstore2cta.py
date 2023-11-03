@@ -82,6 +82,7 @@ from file f inner join volume v
         v.label = %s and
         v.active_files > 0 and
         f.deleted = 'n'
+        order by f.location_cookie
 """
 
 SELECT_ENSTORE_FILES_FOR_VOLUME_WITH_COPY = """
@@ -89,6 +90,7 @@ select f.*,
        v.storage_group||'.'||v.file_family||'@cta' as storage_class,
        f1.bfid as copy_bfid,
        f1.location_cookie as copy_location_cookie,
+       f1.deleted as copy_deleted,
        v1.*
 from file f
 inner join volume v on v.id = f.volume
@@ -100,11 +102,13 @@ left outer join volume v1 on v1.id = f1.volume
         v.system_inhibit_0 = 'none' and
         v.label = %s and
         v.active_files > 0 and
+        (f1.deleted is null or f1.deleted = 'n') and
         f.deleted = 'n'
+        order by f.pnfs_id
 """
 
-# Enstore to CTA media_type mape, entries
-# in CTA are expected to exist
+# Enstore to CTA media_type map.
+# Entries in CTA are expected to exist.
 media_type_map = {
     "LTO8" : "LTO8",
     "M8" : "LTO7M",
@@ -575,10 +579,11 @@ class Worker(multiprocessing.Process):
                                                 (label, f["label"], str(e)))
                                     pass
                             try:
-                                insert_cta_tape_file_copy(cta_db,
-                                                          archive_file_id,
-                                                          f,
-                                                          self.config)
+                                if f["copy_deleted"] == "n":
+                                    insert_cta_tape_file_copy(cta_db,
+                                                              archive_file_id,
+                                                              f,
+                                                              self.config)
                             except Exception as e:
                                 print_error("%s Failed to insert tape_file, %s"
                                             " %s %s %s, skipping %s" %
