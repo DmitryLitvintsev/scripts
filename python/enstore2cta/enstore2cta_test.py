@@ -24,162 +24,25 @@ except ModuleNotFoundError:
     import urllib.parse as urlparse
 
 
+DISK_INSTANCE_NAME = "eosdev"
+TAPE_POOL_NAME = "ctasystest"
+
 CONFIG_FILE = os.getenv("MIGRATION_CONFIG")
 if not CONFIG_FILE:
     CONFIG_FILE = "enstore2cta.yaml"
 
 HOSTNAME = socket.getfqdn()
 
-CTA_MEDIA_TYPES = { "LTO8" : { "media_type_name" : "LTO8",
-                               "cartridge" : "LTO-8",
-                               "capacity_in_bytes" : 12000000000000,
-                               "primary_density_code" : 94,
-                               "secondary_density_code" : None,
-                               "nb_wraps" : None,
-                               "min_lpos" : None,
-                               "max_lpos" : None,
-                               "user_comment" : "LTO-8 cartridge formated at 12 TB",
-                               "creation_log_user_name" : getpass.getuser(),
-                               "creation_log_host_name" : HOSTNAME,
-                               "creation_log_time" : int(time.time()),
-                               "last_update_user_name" : getpass.getuser(),
-                               "last_update_host_name" : HOSTNAME,
-                               "last_update_time" : int(time.time()) },
-                    "LTO7M": { "media_type_name" : "LTO7M",
-                               "cartridge" : "LTO-7",
-                               "capacity_in_bytes" : 9000000000000,
-                               "primary_density_code" : 93,
-                               "secondary_density_code" : None,
-                               "nb_wraps" : None,
-                               "min_lpos" : None,
-                               "max_lpos" : None,
-                               "user_comment" : "LTO-7 M8 cartridge formated at 9 TB",
-                               "creation_log_user_name" : getpass.getuser(),
-                               "creation_log_host_name": HOSTNAME,
-                               "creation_log_time" : int(time.time()),
-                               "last_update_user_name" : getpass.getuser(),
-                               "last_update_host_name" : HOSTNAME,
-                               "last_update_time" : int(time.time()) },
-                    "LTO9" : { "media_type_name" : "LTO9",
-                               "cartridge" : "LTO-9",
-                               "capacity_in_bytes" : 18000000000000,
-                               "primary_density_code" : 96,
-                               "secondary_density_code" : None,
-                               "nb_wraps" : None,
-                               "min_lpos" : None,
-                               "max_lpos" : None,
-                               "user_comment" : "LTO-9 cartridge formatted at 18TB",
-                               "creation_log_user_name" : getpass.getuser(),
-                               "creation_log_host_name": HOSTNAME,
-                               "creation_log_time" : int(time.time()),
-                               "last_update_user_name" : getpass.getuser(),
-                               "last_update_host_name" : HOSTNAME,
-                               "last_update_time" : int(time.time()) },
-}
-
-INSERT_MEDIA_TYPES = """
-insert into media_type (
-  media_type_id,
-  media_type_name,
-  cartridge,
-  capacity_in_bytes,
-  primary_density_code,
-  secondary_density_code,
-  nb_wraps,
-  min_lpos,
-  max_lpos,
-  user_comment,
-  creation_log_user_name,
-  creation_log_host_name,
-  creation_log_time,
-  last_update_user_name,
-  last_update_host_name,
-  last_update_time
-) values (
-  (select nextval('media_type_id_seq')),
-  %s,
-  %s,
-  %s,
-  %s,
-  %s,
-  %s,
-  %s,
-  %s,
-  %s,
-  %s,
-  %s,
-  %s,
-  %s,
-  %s,
-  %s
-)                                                                                                                                                                                           
-"""
-
-def insert_cta_media_types(cta_db):
-    for key, value in CTA_MEDIA_TYPES.items():
-        res = insert(cta_db,
-                     INSERT_MEDIA_TYPES,
-                     (value["media_type_name"],
-                      value["cartridge"],
-                      value["capacity_in_bytes"],
-                      value["primary_density_code"],
-                      value["secondary_density_code"],
-                      value["nb_wraps"],
-                      value["min_lpos"],
-                      value["max_lpos"],
-                      value["user_comment"],
-                      value["creation_log_user_name"],
-                      value["creation_log_host_name"],
-                      value["creation_log_time"],
-                      value["last_update_user_name"],
-                      value["last_update_host_name"],
-                      value["last_update_time"]))
-
-
-SELECT_LIBRARIES = """
-select distinct library as library
-from volume
-  where active_files>0
-        and system_inhibit_0 = 'none'
-        and library not like 'shelf%'
-        and media_type in ('LTO8', 'M8', 'LTO9')
-"""
-
-SELECT_LIBRARIES_FOR_VO = """
-select distinct library as library
-from volume
-  where active_files>0
-        and system_inhibit_0 = 'none'
-        and library not like 'shelf%%'
-        and media_type in ('LTO8', 'M8', 'LTO9')
-        and storage_group = %s
-"""
-
-
 SELECT_STORAGE_CLASSES = """
-select distinct storage_group||'.'||file_family as storage_class
+select distinct storage_group||'.'||file_family||'@cta' as storage_class
 from volume
   where active_files>0
-        and media_type in ('LTO8', 'M8', 'LTO9')
         and system_inhibit_0 = 'none'
         and library not like 'shelf%'
         and file_family not like '%_copy_1'
         and file_family not like '%-MIGRATION'
         and file_family not like '%-MIGRATION2'
 """
-
-SELECT_MULTIPLE_COPY_STORAGE_CLASSES = """
-select distinct storage_group||'.'||file_family as storage_class
-from volume
-  where active_files>0
-        and media_type in ('LTO8', 'M8', 'LTO9')
-        and system_inhibit_0 = 'none'
-        and library not like 'shelf%'
-        and file_family like '%_copy_1'
-        and file_family not like '%-MIGRATION_copy_1'
-        and file_family not like '%-MIGRATION2_copy_1'
-"""
-
 
 SELECT_VOS = """
 select distinct storage_group from volume
@@ -207,7 +70,6 @@ select label from volume
         and active_files > 0
         order by label asc
 """
-
 
 SELECT_ENSTORE_FILES_FOR_VOLUME = """
 select f.*, v.storage_group||'.'||v.file_family||'@cta' as storage_class
@@ -314,7 +176,6 @@ def get_switch_epoch():
     epoch = int(time.mktime(time.strptime(CRC_SWITCH, time_format)))
     return epoch
 
-
 def convert_0_adler32_to_1_adler32(crc, filesize):
     BASE = 65521
     size = filesize % BASE
@@ -326,88 +187,7 @@ def convert_0_adler32_to_1_adler32(crc, filesize):
     return new_adler
 
 
-INSERT_DISK_INSTANCE = """
-insert into disk_instance (
-  disk_instance_name,
-  user_comment,
-  creation_log_user_name,
-  creation_log_host_name,
-  creation_log_time,
-  last_update_user_name,
-  last_update_host_name,
-  last_update_time
-) values (
-  %s,
-  %s,
-  %s,
-  %s,
-  %s,
-  %s,
-  %s,
-  %s
-)
-"""
-
-def insert_disk_instance(cta_db, disk_instance_name):
-    res = insert(cta_db,
-                 INSERT_DISK_INSTANCE,
-                 (disk_instance_name,
-                  disk_instance_name,
-                  getpass.getuser(),
-                  HOSTNAME,
-                  int(time.time()),
-                  getpass.getuser(),
-                  HOSTNAME,
-                  int(time.time())))
-
-
-
-INSERT_LOGICAL_LIBRARY = """
-insert into logical_library (
-  logical_library_id,
-  logical_library_name,
-  is_disabled,
-  disabled_reason,
-  user_comment,
-  creation_log_user_name,
-  creation_log_host_name,
-  creation_log_time,
-  last_update_user_name,
-  last_update_host_name,
-  last_update_time
-  ) values (
-  (select nextval('logical_library_id_seq')),
-  %s,
-  '0',
-  null,
-  %s,
-  %s,
-  %s,
-  %s,
-  %s,
-  %s,
-  %s
-  )
-"""
-
-
-def insert_logical_libraries(enstore_db, cta_db):
-    enstore_libraries = get_enstore_libraries(enstore_db)
-    for library in enstore_libraries:
-        res = insert(cta_db,
-                     INSERT_LOGICAL_LIBRARY,
-                     (library,
-                      "Imported from Enstore %s" % (library, ),
-                      getpass.getuser(),
-                      HOSTNAME,
-                      int(time.time()),
-                      getpass.getuser(),
-                      HOSTNAME,
-                      int(time.time())))
-    return enstore_libraries
-
-
-INSERT_VO = """
+ISERT_VO="""
 insert into virtual_organization (
   virtual_organization_id,
   virtual_organization_name,
@@ -438,13 +218,13 @@ insert into virtual_organization (
   %s)
 """
 
-def insert_vos(enstore_db, cta_db, disk_instance_name):
+def insert_vos(enstore_db, cta_db, disk_instance_name=DISK_INSTANCE_NAME):
     vos = select(enstore_db,
                  SELECT_VOS)
     for row in vos:
         vo = row["storage_group"]
         res = insert(cta_db,
-                     INSERT_VO,
+                     ISERT_VO,
                      (vo,
                       2, #FIXME read_max_drives
                       2, #FIXME write_max_drives
@@ -457,8 +237,6 @@ def insert_vos(enstore_db, cta_db, disk_instance_name):
                       HOSTNAME,
                       int(time.time()),
                       disk_instance_name))
-    return [row["storage_group"] for row in vos]
-
 
 INSERT_STORAGE_CLASS = """
 insert into storage_class (
@@ -488,145 +266,26 @@ insert into storage_class (
 )
 """
 
-def insert_storage_class(cta_db, storage_class, number_of_copies=1):
-    vo = storage_class.split(".")[0]
-    res = insert(cta_db,
-                 INSERT_STORAGE_CLASS,
-                 (storage_class+"@cta",
-                  number_of_copies,
-                  vo,
-                  "Imported from Enstore",
-                  getpass.getuser(),
-                  HOSTNAME,
-                  int(time.time()),
-                  getpass.getuser(),
-                  HOSTNAME,
-                  int(time.time())))
-
-
 def insert_storage_classes(enstore_db, cta_db):
-    multiple_copy_storge_classes = select(enstore_db,
-                                          SELECT_MULTIPLE_COPY_STORAGE_CLASSES)
-
-    added_classes = {}
-    number_of_copies = 2
-    for row in multiple_copy_storge_classes:
+    classes = select(enstore_db, SELECT_STORAGE_CLASSES)
+    for row in classes:
         storage_class = row["storage_class"]
-        storage_class = storage_class.rstrip("_copy_1")
-        insert_storage_class(cta_db, storage_class, number_of_copies)
-        added_classes[storage_class] = number_of_copies
-
-    storage_classes = select(enstore_db,
-                            SELECT_STORAGE_CLASSES)
-    number_of_copies = 1
-
-    for row in storage_classes:
-        storage_class = row["storage_class"]
-        if storage_class not in added_classes:
-            insert_storage_class(cta_db, storage_class, number_of_copies)
-            added_classes[storage_class] = number_of_copies
-    return added_classes
-
-INSERT_TAPE_POOL = """
-insert into tape_pool (
-  tape_pool_id,
-  tape_pool_name,
-  virtual_organization_id,
-  nb_partial_tapes,
-  is_encrypted,
-  supply,
-  user_comment,
-  creation_log_user_name,
-  creation_log_host_name,
-  creation_log_time,
-  last_update_user_name,
-  last_update_host_name,
-  last_update_time,
-  encryption_key_name
-  ) values (
-  (select nextval('tape_pool_id_seq')),
-  %s,
-  (select virtual_organization_id from virtual_organization where virtual_organization_name = %s),
-  %s,
-  '0',
-  null,
-  %s,
-  %s,
-  %s,
-  %s,
-  %s,
-  %s,
-  %s,
-  null)
-"""
-
-def insert_tape_pools(cta_db, vos):
-    #
-    # select all libraries for VO
-    #
-    tape_pools = {}
-    for vo in vos:
-        res = insert_returning(cta_db,
-                               INSERT_TAPE_POOL,
-                               ("%s" % (vo,),
-                                vo,
-                                0,
-                                "Tape pool for %s" % (vo,),
-                                getpass.getuser(),
-                                HOSTNAME,
-                                int(time.time()),
-                                getpass.getuser(),
-                                HOSTNAME,
-                                int(time.time())))
-        tape_pools[vo] = res
-    return tape_pools
-                                   
-INSERT_ARCHIVE_ROUTE = """
-insert into archive_route (
-  storage_class_id,
-  copy_nb,
-  tape_pool_id,
-  user_comment,
-  creation_log_user_name,
-  creation_log_host_name,
-  creation_log_time,
-  last_update_user_name,
-  last_update_host_name,
-  last_update_time
-) values (
-  (select storage_class_id from storage_class where storage_class_name = %s),
-  %s,
-  %s,
-  %s,
-  %s,
-  %s,
-  %s,
-  %s,
-  %s,
-  %s
-)
-"""
-
-def insert_archive_routes(cta_db, storage_classes, tape_pools):
-    for storage_class, number_of_copies in storage_classes.items():
         vo = storage_class.split(".")[0]
-        pool = tape_pools[vo]
         res = insert(cta_db,
-                     INSERT_ARCHIVE_ROUTE,
-                     (storage_class + "@cta",
-                      number_of_copies,
-                      pool["tape_pool_id"],
-                      "Archive route for %s, tape pool %s" % (storage_class + "@cta",
-                                                              pool["tape_pool_name"],),
+                     INSERT_STORAGE_CLASS,
+                     (storage_class,
+                      1, #FIXME nb_copies
+                      vo,
+                      "Imported from Enstore",
                       getpass.getuser(),
                       HOSTNAME,
                       int(time.time()),
                       getpass.getuser(),
                       HOSTNAME,
                       int(time.time())))
-        
-                         
-INSERT_ARCHIVE_FILE = """
+
+
+INSERT_ARCHIVE_FILE="""
 insert into archive_file (
   archive_file_id,
   disk_instance_name,
@@ -658,7 +317,7 @@ insert into archive_file (
 )
 """
 
-INSERT_TAPE_FILE = """
+INSERT_TAPE_FILE="""
 insert into tape_file (
   vid,
   fseq,
@@ -784,15 +443,12 @@ insert into tape (
 """
 
 def insert_cta_tape(connection, enstore_volume, config):
-    vo = enstore_volume["storage_group"]
-    library = enstore_volume["library"]
-    tape_pool_name = "%s:%s" % (library, vo,) #FIXME
     res = insert(connection,
                  INSERT_CTA_TAPE,(
                      enstore_volume["label"][:6],
                      config.get("media_type_map")[enstore_volume["media_type"]],
-                     enstore_volume["library"],
-                     enstore_volume["storage_group"], #config.get("tape_pool_name"), #FIXME
+                     config.get("library_map")[enstore_volume["library"]],
+                     config.get("tape_pool_name"), #FIXME
                      enstore_volume["active_bytes"],
                      extract_file_number(enstore_volume["eod_cookie"]) - 1,
                      enstore_volume["active_files"],
@@ -836,7 +492,7 @@ def get_cta_location(connection, enstore_file):
         return None
 
 
-INSERT_CHIMERA_LOCATION = """
+INSERT_CHIMERA_LOCATION="""
 insert into t_locationinfo (inumber, itype, ipriority, ictime, iatime, istate, ilocation)
    values (
    (select inumber from t_inodes where ipnfsid = %s),
@@ -940,13 +596,13 @@ class Worker(multiprocessing.Process):
                         location = "cta://cta/%s?archiveid=%d" %\
                                    (f["pnfs_id"],
                                    archive_file_id,)
-#                        try:
-#                            res = insert_chimera_location(chimera_db, f, location)
-#                        except Exception as e:
-#                             print_error("%s %s failed to insert location %s, %s" %
-#                                         (label, f["pnfs_id"], location, str(e),))
-#                             pass
-#
+                        try:
+                            res = insert_chimera_location(chimera_db, f, location)
+                        except Exception as e:
+                             print_error("%s %s failed to insert location %s, %s" %
+                                         (label, f["pnfs_id"], location, str(e),))
+                             pass
+
                     except Exception as e:
                         print_error("%s, multiple pnfsid, skipping %s, %s" %
                                     (enstore_volume["label"], f["pnfs_id"], str(e)))
@@ -1082,38 +738,7 @@ def select(con, sql, pars=None):
                 pass
 
 
-def parse_enstore_config(file_name):
-    #
-    # Parse enstore config
-    #
-    configdict = {}
-    with open(file_name, "r") as f:
-        lines = "".join(f.readlines())
-        exec(lines)
-    return configdict
-
-
-def get_enstore_libraries(enstore_db):
-    rows = select(enstore_db,
-                  SELECT_LIBRARIES)
-    libraries = [row["library"] for row in rows]
-    return libraries
-
-
-#    library_keys = [i for i in enstore_config.keys() if i.endswith(".library_manager")]
-#    movers_keys = [i for i in enstore_config.keys() if i.endswith(".mover")]
-#
-#    libraries = {}
-#    for library in library_keys:
-#        for mover in movers_keys:
-#            if enstore_config[mover].get("library") == library:
-#                short_name = library.rstrip(".library_manager")
-#                libraries[short_name] = libraries.get(short_name, 0) + 1
-#    return libraries
-
-
 def main():
-
     """
     main function
     """
@@ -1181,15 +806,11 @@ def main():
 
     enstore_db = create_connection(configuration.get("enstore_db"))
     cta_db = create_connection(configuration.get("cta_db"))
-    insert_cta_media_types(cta_db)
-    insert_disk_instance(cta_db, disk_instance_name=configuration.get("disk_instance_name"))
-    vos = insert_vos(enstore_db, cta_db, disk_instance_name=configuration.get("disk_instance_name"))
-    libraries = insert_logical_libraries(enstore_db, cta_db)
-    storage_classes = insert_storage_classes(enstore_db, cta_db)
-    tape_pools = insert_tape_pools(cta_db, vos)
-    insert_archive_routes(cta_db, storage_classes, tape_pools)
+    insert_vos(enstore_db, cta_db, disk_instance_name=configuration.get("disk_instance_name"))
+    insert_storage_classes(enstore_db, cta_db)
     enstore_db.close()
     cta_db.close()
+
 
     print_message("**** Start processing %d  labels ****" % (len(labels), ))
     t0 = time.time()

@@ -35,24 +35,9 @@ Script expects configuration file `enstore2cta.yaml` in current directory or poi
 
 ```
 disk_instance_name: Fermilab       # CTA dsk instance name, needs to be defined in advance in CTA
-tape_pool_name: ctasystest         # CTA tape pool name, needs to be defined in advance in CTA
 cta_db: postgresql://user:password@host:port/db_name       # CTA db connection string, needs write access
 enstore_db: postgresql://user:password@host:port/db_name   # Enstore DB connection string, needs r/o access
 chimera_db: postgresql://user:password@host:port/db_name   # Chimera DB connection string, needs write access
-# map from Enstore LMs to CTA logical library names
-library_map:
-  CD-LTO8F1: TS4500G1
-  CD-LTO8F1T: TS4500G1
-  CD-LTO8G1: TS4500G1
-  CD-LTO8G1T: TS4500G1
-  CD-LTO8G2: TS4500G1
-  CD-LTO8G2T: TS4500G1
-  CTA-TESTING: TS4500G1
-  TFF1-LTO9: TS4500G1
-  TFF1-LTO9T: TS4500G1
-  TFF2-LTO9: TS4500G1
-  TFF2-LTO9M: TS4500G1
-  TFF2-LTO9T: TS4500G1
 # Enstore to CTA media_type map
 media_type_map:
   LTO8: LTO8
@@ -61,12 +46,8 @@ media_type_map:
 
 ```
 
-The media type names and logical_library_name(s) must be defined in CTA
-
 
 Limitation
 ----------
-
-* Script uses single tape pool defined in yaml file.
 
 * Counts of file copies on tape volumes are not updated. This can be done by a single update query after script has completed. Not relevant for sites utilizing multiple file copies.
