@@ -20,9 +20,9 @@ it is not defined, it looks for file enstore2cta.yaml in current directory.
 Script will quit if configuration YAML is not found.
 
 optional arguments:
-  -h, --help     show this help message and exit
-  --label LABEL  comma separated list of labels
-  --all          do all labels
+  -h, --help        show this help message and exit
+  --label LABEL     comma separated list of labels
+  --skip_locations  skip filling chimera locations (good for testing)
 ```
 
 The script can work with individual label(s) passed as comma separated values to `--label` option. Or it can be invoked
@@ -45,9 +45,3 @@ media_type_map:
   LTO9: LTO9
 
 ```
-
-
-Limitation
-----------
-
-* Counts of file copies on tape volumes are not updated. This can be done by a single update query after script has completed. Not relevant for sites utilizing multiple file copies.

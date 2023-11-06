@@ -112,7 +112,7 @@ insert into media_type (
   %s,
   %s,
   %s
-)                                                                                                                                                                                           
+)
 """
 
 def insert_cta_media_types(cta_db):
@@ -580,7 +580,7 @@ def insert_tape_pools(cta_db, vos):
                                 int(time.time())))
         tape_pools[vo] = res
     return tape_pools
-                                   
+
 INSERT_ARCHIVE_ROUTE = """
 insert into archive_route (
   storage_class_id,
@@ -624,8 +624,8 @@ def insert_archive_routes(cta_db, storage_classes, tape_pools):
                       getpass.getuser(),
                       HOSTNAME,
                       int(time.time())))
-        
-                         
+
+
 INSERT_ARCHIVE_FILE = """
 insert into archive_file (
   archive_file_id,
@@ -848,12 +848,34 @@ insert into t_locationinfo (inumber, itype, ipriority, ictime, iatime, istate, i
    %s)
 """
 
-
 def insert_chimera_location(connection, enstore_file, location):
     res = insert(connection,
                  INSERT_CHIMERA_LOCATION,
                  (enstore_file["pnfs_id"],
                   location,))
+    return res
+
+
+UPDATE_COPY_COUNTS = """
+update tape
+   set nb_copy_nb_1 = t.nb_copy_nb_1,
+       copy_nb_1_in_bytes = t.copy_nb_1_in_bytes,
+       nb_copy_nb_gt_1 = t.nb_copy_nb_gt_1,
+       copy_nb_gt_1_in_bytes = t.copy_nb_gt_1_in_bytes
+from
+   (select tf.vid as vid,
+      sum(case when tf.copy_nb > 1 then af.size_in_bytes else 0 end) as copy_nb_gt_1_in_bytes,
+      sum(case when tf.copy_nb = 1 then af.size_in_bytes else 0 end) as copy_nb_1_in_bytes,
+      sum(case when tf.copy_nb > 1 then 1 else 0 end) as nb_copy_nb_gt_1,
+      sum(case when tf.copy_nb = 1 then 1 else 0 end) as nb_copy_nb_1
+    from archive_file af
+       inner join tape_file tf on tf.archive_file_id = af.archive_file_id
+    group by tf.vid) as t
+    where t.vid = tape.vid
+"""
+
+def update_cta_copy_counts(cta_db):
+    res = update(cta_db, UPDATE_COPY_COUNTS)
     return res
 
 
@@ -937,16 +959,17 @@ class Worker(multiprocessing.Process):
                                              str(e)))
                                 pass
 
-                        location = "cta://cta/%s?archiveid=%d" %\
-                                   (f["pnfs_id"],
-                                   archive_file_id,)
-#                        try:
-#                            res = insert_chimera_location(chimera_db, f, location)
-#                        except Exception as e:
-#                             print_error("%s %s failed to insert location %s, %s" %
-#                                         (label, f["pnfs_id"], location, str(e),))
-#                             pass
-#
+                        if not self.config["skip_locations"]:
+
+                            location = "cta://cta/%s?archiveid=%d" % (f["pnfs_id"],
+                                                                      archive_file_id,)
+                            try:
+                                res = insert_chimera_location(chimera_db, f, location)
+                            except Exception as e:
+                                print_error("%s %s failed to insert location into chimera DB %s, %s" %
+                                            (label, f["pnfs_id"], location, str(e),))
+                                pass
+
                     except Exception as e:
                         print_error("%s, multiple pnfsid, skipping %s, %s" %
                                     (enstore_volume["label"], f["pnfs_id"], str(e)))
@@ -964,7 +987,7 @@ class Worker(multiprocessing.Process):
 
 
 
-def update(con, sql, pars):
+def update(con, sql, pars=None):
     """
     Update database record
 
@@ -983,7 +1006,7 @@ def update(con, sql, pars):
     return insert(con, sql, pars)
 
 
-def insert(con, sql, pars):
+def insert(con, sql, pars=None):
     """
     Insert database record
 
@@ -1002,7 +1025,10 @@ def insert(con, sql, pars):
     cursor = None
     try:
         cursor = con.cursor()
-        res = cursor.execute(sql, pars)
+        if pars:
+            res = cursor.execute(sql, pars)
+        else:
+            res = cursor.execute(sql)
         con.commit()
         return res
     except Exception:
@@ -1015,7 +1041,7 @@ def insert(con, sql, pars):
             except Exception:
                 pass
 
-def insert_returning(con, sql, pars):
+def insert_returning(con, sql, pars=None):
     """
     Insert database record
 
@@ -1035,7 +1061,10 @@ def insert_returning(con, sql, pars):
     try:
         sql +=  "returning *"
         cursor = con.cursor(cursor_factory=psycopg2.extras.RealDictCursor)
-        cursor.execute(sql, pars)
+        if pars:
+            cursor.execute(sql, pars)
+        else:
+            cursor.execute(sql)
         res = cursor.fetchone()
         con.commit()
         return res
@@ -1133,6 +1162,11 @@ def main():
         help="do all labels",
         action="store_true")
 
+    parser.add_argument(
+        "--skip_locations",
+        help="skip filling chimera locations (good for testing)",
+        action="store_true")
+
     args = parser.parse_args()
 
     if args.label and args.all:
@@ -1161,6 +1195,7 @@ def main():
         print_error("Failed to load configuration %s" % (CONFIG_FILE,))
         sys.exit(1)
 
+    configuration["skip_locations"] = args.skip_locations
     print (configuration)
 
     labels = None
@@ -1211,9 +1246,15 @@ def main():
 
     map(lambda x: x.join(), workers);
 
+    print_message("Finished file migration, bootstrapping tapes copies counts")
+
+    cta_db = create_connection(configuration.get("cta_db"))
+    res = update_cta_copy_counts(cta_db)
+    cta_db.close()
 
     print_message("**** FINISH ****")
     print_message("Took %d seconds" % (int(time.time()-t0+0.5),))
+
 
 if __name__ == "__main__":
     main()
