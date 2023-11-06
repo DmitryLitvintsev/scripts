@@ -1158,6 +1158,7 @@ def main():
     main function
     """
     parser = argparse.ArgumentParser(
+        formatter_class=argparse.ArgumentDefaultsHelpFormatter,
         description="This script converts Enstore metadata to CTA metadata. "
         "It looks for YAML configuration file pointed to by MIGRATION_CONFIG "
         "environment variable or, if it is not defined, it looks for file enstore2cta.yaml "
@@ -1190,6 +1191,15 @@ def main():
     parser.add_argument(
         "--vo",
         help="vo corresponding to storage_class. Needed when adding single volume to existing system using --add option")
+
+    parser.add_argument(
+        "--cpu_count",
+        action  = "store",
+        type = int,
+        default =  multiprocessing.cpu_count(),
+        help="override cpu count - number of simulateously processed labels")
+
+
     args = parser.parse_args()
 
     configuration = None
@@ -1287,8 +1297,8 @@ def main():
 
     queue = multiprocessing.Queue(10000)
     workers = []
-    cpu_count = multiprocessing.cpu_count()
-    cpu_count = 2
+    #cpu_count = multiprocessing.cpu_count()
+    cpu_count = args.cpu_count
 
     for i in range(cpu_count):
         worker = Worker(queue, configuration)
