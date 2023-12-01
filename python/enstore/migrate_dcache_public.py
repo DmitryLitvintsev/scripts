@@ -10,15 +10,20 @@ import subprocess
 import sys
 import time
 import uuid
-
 import paramiko
 import psycopg2
 import psycopg2.extras
+import yaml
 
 try:
     from DBUtils.PooledDB import PooledDB
 except ModuleNotFoundError:
     from dbutils.pooled_db import PooledDB
+
+try:
+    import urlparse
+except ModuleNotFoundError:
+    import urllib.parse as urlparse
 
 import pandas as pd
 from tabulate import tabulate
@@ -54,6 +59,11 @@ ALTER TABLE ONLY file_migrate
 grant select on  file_migrate to enstore_reader;
 
 """
+
+CONFIG_FILE = os.getenv("MIGRATION_CONFIG")
+if not CONFIG_FILE:
+    CONFIG_FILE = "migration.yaml"
+
 
 HOSTNAME = socket.gethostname()
 SSH_HOST = "fndca"
@@ -226,15 +236,15 @@ def kinit():
     execute_command(cmd)
 
 
-def get_shell():
+def get_shell(host=SSH_HOST, port=SSH_PORT, user=SSH_USER):
     """
     Admin shell
     """
     ssh = paramiko.SSHClient()
     ssh.set_missing_host_key_policy(paramiko.AutoAddPolicy())
-    ssh.connect(hostname=SSH_HOST,
-                port=SSH_PORT,
-                username=SSH_USER,
+    ssh.connect(hostname=host,
+                port=port,
+                username=user,
                 gss_auth=True,
                 gss_kex=True)
     return ssh
@@ -319,6 +329,8 @@ def get_active_pools_in_pool_group(ssh, pgroup):
         i = line.strip()
         if not i:
             continue
+        if i.strip().find("nested groups") != -1:
+            break
         if i.strip().startswith("poolList :"):
             hasPoolList = True
             continue
@@ -384,6 +396,20 @@ def get_path(pnfsid):
     return path
 
 
+# create DB connection from URI
+def create_connection(uri):
+    result = urlparse.urlparse(uri)
+    return PooledDB(psycopg2,
+                    maxconnections=1,
+                    maxcached=1,
+                    blocking=True,
+                    database=result.path[1:],
+                    user=result.username,
+                    password=result.password,
+                    host=result.hostname,
+                    port=result.port)
+
+
 class KinitWorker(multiprocessing.Process):
     def __init__(self):
         super(KinitWorker, self).__init__()
@@ -400,10 +426,11 @@ class StageWorker(multiprocessing.Process):
     """
     This class is responsible for staging files into source dCache system
     """
-    def __init__(self, stage_queue, pool):
+    def __init__(self, stage_queue, pool, config):
         super(StageWorker, self).__init__()
         self.stage_queue = stage_queue
         self.pool = pool
+        self.config = config
 
     def run(self):
         """
@@ -415,34 +442,26 @@ class StageWorker(multiprocessing.Process):
 
         # admin shell
         ssh = get_shell()
+        ssh = get_shell(self.config.get("admin").get("host", SSH_HOST),
+                        self.config.get("admin").get("port", SSH_PORT),
+                        self.config.get("admin").get("user", SSH_USER))
         # db connection pool to enstore db
-        pool = PooledDB(psycopg2,
-                        maxconnections=1,
-                        maxcached=1,
-                        blocking=True,
-                        host="enstore00",
-                        port=8888,
-                        user="enstore",
-                        database="enstoredb")
-
+        pool = create_connection(self.config.get("enstore_db"))
         # db connection pool to chimera db
-        chimera_pool = PooledDB(psycopg2,
-                                maxconnections=1,
-                                maxcached=1,
-                                blocking=True,
-                                host="enstore01",
-                                user="enstore",
-                                database="chimera")
+        chimera_pool = create_connection(self.config.get("chimera_db"))
+
         while True:
             # before next label
             try:
                 precious_fraction = get_precious_fraction(ssh, self.pool)
                 while precious_fraction > 0.1:
-                    print_message("%s pool has %d percent precious, sleeping" % (self.pool, int(precious_fraction * 100),))
+                    print_message("%s pool has %d percent precious, sleeping" %
+                                  (self.pool, int(precious_fraction * 100),))
                     time.sleep(600)
                     precious_fraction = get_precious_fraction(ssh, self.pool)
             except RuntimeError as e:
-                print_message("%s: Failed to query pool for spaces, sleeping, retrying" % (self.pool, ))
+                print_message("%s: Failed to query pool for spaces, sleeping, retrying" %
+                              (self.pool, ))
                 time.sleep(30)
                 continue
 
@@ -526,7 +545,8 @@ class StageWorker(multiprocessing.Process):
             cached = loop = count = 0
             pools = []
             try:
-                pools = get_active_pools_in_pool_group(ssh, POOL_GROUP)
+                pools = get_active_pools_in_pool_group(ssh,
+                                                       self.config.get("pool_group"))
             except RuntimeError as e:
                 print_error("%s %s: Failed to query pools" % (self.pool, label, ))
                 continue
@@ -592,7 +612,7 @@ class StageWorker(multiprocessing.Process):
                         print_error("%s, %s : %s, Skipping " % (self.pool, label, inhibit, ))
                         break
                     print_message("%s, %s Sleeping" % (self.pool, label, ))
-                    pools = get_active_pools_in_pool_group(ssh, POOL_GROUP)
+                    pools = get_active_pools_in_pool_group(ssh, self.config.get("pool_group"))
                     time.sleep(600)
 
             # label is done here
@@ -710,7 +730,7 @@ def get_label_system_inhibit(pool, label):
 
 
 def bust_layers(pool, entry):
-    """"
+    """
     Delete layers
     """
     connection = None
@@ -789,7 +809,13 @@ def main():
     """
     main function
     """
-    parser = argparse.ArgumentParser()
+    parser = argparse.ArgumentParser(
+        formatter_class=argparse.ArgumentDefaultsHelpFormatter,
+        description="This script migrates tapes using dCache. "
+        "It looks for YAML configuration file pointed to by MIGRATION_CONFIG "
+        "environment variable or, if it is not defined, it looks for file migration.yaml "
+        "in current directory. Script will quit if configuration YAML is not found. "
+        )
 
     parser.add_argument(
         "--file",
@@ -812,6 +838,27 @@ def main():
         help="run updater")
 
     args = parser.parse_args()
+
+
+    configuration = None
+    try:
+        mode = os.stat(CONFIG_FILE).st_mode
+        if mode != 33152:
+            print_error("Access to config file file %s is too permissive, do chmod 0600" %
+                        (CONFIG_FILE,))
+            sys.exit(1)
+        with open(CONFIG_FILE, "r") as f:
+            configuration = yaml.safe_load(f)
+    except (OSError, IOError) as e:
+        if e.errno == errno.ENOENT:
+            print_error("Config file %s does not exist" % (CONFIG_FILE,))
+        sys.exit(1)
+
+    if not configuration:
+        print_error("Failed to load configuration %s" % (CONFIG_FILE,))
+        sys.exit(1)
+
+    print(configuration)
 
     if args.progress:
         if args.sg:
@@ -855,12 +902,12 @@ def main():
     kinitWorker.start()
 
     ssh = get_shell()
-    pools = get_active_pools_in_pool_group(ssh, POOL_GROUP)
+    pools = get_active_pools_in_pool_group(ssh, configuration.get("pool_group"))
     cpu_count = len(pools)
     ssh.close()
 
     for pool in pools:
-        worker = StageWorker(stage_queue, pool)
+        worker = StageWorker(stage_queue, pool, configuration)
         stage_workers.append(worker)
         worker.start()
 

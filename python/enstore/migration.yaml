@@ -1,0 +1,7 @@
+enstore_db: "postgresql://user:pass@host:port/dbname"
+chimera_db: "postgresql://user:pass@host:port/dbname"
+admin:
+  host: fndca
+  port: 24223
+  user: enstore
+pool_group: CdfWritePools
