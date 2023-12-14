@@ -485,13 +485,11 @@ class StageWorker(multiprocessing.Process):
                     continue
 
                 try:
-                    print_message("Start query")
                     cursor.execute("select f.bfid, f.pnfs_id, f.crc, f.size "
                                    "from file f inner join volume v on v.id = f.volume "
                                    "left outer join file_migrate fm on f.bfid = fm.src_bfid where v.label = %s "
                                    "and f.deleted = 'n' and "
                                    "fm.src_bfid is null order by f.location_cookie asc", (label, ))
-                    print_message("End query")
                     res = cursor.fetchall()
                     if not res:
                         print_error("All files migrated for label %s" % (label, ))
