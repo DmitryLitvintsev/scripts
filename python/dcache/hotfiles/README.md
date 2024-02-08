@@ -1,3 +1,4 @@
+```
 pip install --upgrade pip
 yum install krb5-devel-1.15.1-50.el7.x86_64
 
@@ -15,3 +16,4 @@ pip install python-gssapi
 
 
 yum install --disableexcludes=all  postgresql11*
+```
