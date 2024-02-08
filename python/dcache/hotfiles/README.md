@@ -8,12 +8,7 @@ python get-pip.py
 python -m pip install --upgrade "pip < 21.0"
 yum install --disablerepo=epel python-devel
 pip install "paramiko[gssapi]"
-pip install pandas
-pip install tabulate
-pip uninstall psycopg2
-pip install DBUtils==1.3
 pip install python-gssapi
 
 
-yum install --disableexcludes=all  postgresql11*
 ```
