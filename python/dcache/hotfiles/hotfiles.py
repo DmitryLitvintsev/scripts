@@ -86,7 +86,7 @@ def execute_admin_command(ssh, cmd):
 
 
 def pp_get(ssh, source_pool, destination_pool, pnfsid):
-    """                                                                                                                                                 
+    """
     trgger pp get file on destination_pool from source pool
     """
     cmd = "\s %s pp get file %s %s "
@@ -100,8 +100,8 @@ def pp_get(ssh, source_pool, destination_pool, pnfsid):
 
 
 def migrate(ssh, pool, destination, pnfsid, copies):
-    """                                                                                                                                                 
-    trigget migration copy of pnfs on pool. 
+    """
+    trigget migration copy of pnfs on pool.
     """
     cmd = "\s %s migration copy -tmode=cached -select=random -pnfsid=%s -replicas=%d -target=pgroup %s"
     cmd = cmd % (pool,
@@ -288,25 +288,25 @@ class HotFileReplicator(multiprocessing.Process):
         for pool in iter(self.queue.get, None):
             all_pools.remove(pool)
             mover_ls_output = moverls(ssh, pool)
-            data = {} 
-            counter = 0 
+            data = {}
+            counter = 0
             for line in mover_ls_output:
                 parts = line.strip().split()
                 pnfsid = parts[4]
                 locations = None
                 try:
                     locations = get_locations(ssh, pnfsid)
-                    counter += 1 
+                    counter += 1
                 except RuntimeError as e:
                     continue
                 if pnfsid not in data:
-                    data[pnfsid] = { "queue" : 1, 
+                    data[pnfsid] = { "queue" : 1,
                                      "count" : len(locations),
                                      "locations" : locations}
                 else:
-                    data[pnfsid]["queue"] += 1 
-            files = [(i[0], self.number_of_copies-i[1]["count"], i[1]["locations"]) for i in data.items() 
-                     if i[1]["queue"] > self.threshold 
+                    data[pnfsid]["queue"] += 1
+            files = [(i[0], self.number_of_copies-i[1]["count"], i[1]["locations"]) for i in data.items()
+                     if i[1]["queue"] > self.threshold
                      and i[1]["count"] < self.number_of_copies]
             for i in files:
                 pnfsid = i[0]
@@ -316,8 +316,8 @@ class HotFileReplicator(multiprocessing.Process):
                 if len(pools) >= replicas_to_make:
                     destination_pools = random.sample(pools, replicas_to_make)
                     for destination_pool in destination_pools:
-                        try: 
-                            r = pp_get(ssh, 
+                        try:
+                            r = pp_get(ssh,
                                        pool,
                                        destination_pool,
                                        pnfsid)
@@ -325,7 +325,7 @@ class HotFileReplicator(multiprocessing.Process):
                             print_error("%s failed to pp get on pools %s %s" % (pool,
                                                                                 destination_pool,
                                                                                 pnfsid,))
-#                try: 
+#                try:
 #                    r = migrate(ssh,
 #                                pool,
 #                                self.config.get("pool_group"),
@@ -343,10 +343,8 @@ def main():
     """
     parser = argparse.ArgumentParser(
         formatter_class=argparse.ArgumentDefaultsHelpFormatter,
-        description="This script migrates tapes using dCache. "
-        "It looks for YAML configuration file pointed to by MIGRATION_CONFIG "
-        "environment variable or, if it is not defined, it looks for file migration.yaml "
-        "in current directory. Script will quit if configuration YAML is not found. "
+        description="This script replicates hot files in dCache. "
+        "Hot file - is a file taht has more than threshold trandfers in mover queue. "
         )
 
     args = parser.parse_args()
