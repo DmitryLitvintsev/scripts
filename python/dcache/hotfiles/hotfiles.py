@@ -25,7 +25,7 @@ if not CONFIG_FILE:
 
 
 HOSTNAME = socket.gethostname()
-SSH_HOST = "cmsdcadisk"
+SSH_HOST = "example.org"
 SSH_PORT = 22224
 SSH_USER = "admin"
 POOL_GROUP = "flushPools"
