@@ -1,0 +1,7 @@
+admin:
+  host: nodethatrunsadmindoor
+  port: 22224
+  user: admin
+pool_group: flushPools
+threshold: 100
+number_of_copies: 50
