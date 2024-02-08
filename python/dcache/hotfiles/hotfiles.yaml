@@ -1,7 +1,12 @@
+# admin door connection paramaters
 admin:
   host: nodethatrunsadmindoor
   port: 22224
   user: admin
+# pool group
 pool_group: flushPools
+# number reuests for the same file in pool mover queue
+# that triggers replication
 threshold: 100
+# number of replicas to make
 number_of_copies: 50
