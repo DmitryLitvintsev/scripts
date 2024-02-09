@@ -93,7 +93,6 @@ def pp_get(ssh, source_pool, destination_pool, pnfsid):
     cmd = cmd % (destination_pool,
                  pnfsid,
                  source_pool)
-    print_message(cmd)
     result = execute_admin_command(ssh, cmd)
 
     return result
@@ -108,7 +107,6 @@ def migrate(ssh, pool, destination, pnfsid, copies):
                  pnfsid,
                  copies,
                  destination,)
-    print_message(cmd)
     result = execute_admin_command(ssh, cmd)
 
     return result
