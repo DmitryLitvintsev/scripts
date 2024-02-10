@@ -285,6 +285,12 @@ class HotFileReplicator(multiprocessing.Process):
 
         for pool in iter(self.queue.get, None):
             all_pools.remove(pool)
+            mover_ls_output = None
+            try:
+                mover_ls_output = moverls(ssh, pool)
+            except RuntimeErroras e:
+                print_message("%s mover ls failed, skipping " % (pool, ))
+                continue
             mover_ls_output = moverls(ssh, pool)
             data = {}
             counter = 0
