@@ -15,11 +15,13 @@ import paramiko
 import psycopg2
 import psycopg2.extras
 
+# rep set sticky -storage=GM2.gm2_5405A -o=admin off"
 
 
 #migration copy -permanent -storage=GM2.gm2_daq_run5 -tmode=same+admin(1209600) -sticky -smode=removable -select=random -target=pgroup GM2Pools
 #migration copy -permanent -concurrency=5 -tmode=same+admin(1209600) -sticky -smode=removable -select=random -target=pgroup GM2Pools
 #migration copy -permanent -concurrency=5 -tmode=same+admin(7776000) -sticky -smode=removable -select=random -target=pgroup GM2Pools
+#migration copy -permanent -concurrency=5 -tmode=same+admin(604800) -sticky -smode=removable -select=random -target=pgroup readWritePools
 
 HOUR = 3600 
 DAY = 24 * 3600 
@@ -45,6 +47,7 @@ SSH_HOST = "fndca"
 SSH_PORT = 24223
 SSH_USER = "enstore"
 POOL_GROUP = "StagePools"
+DESTONATION_GROUP = "readWritePools"
 
 
 def execute_command(cmd):
@@ -127,6 +130,8 @@ def rep_ls(ssh, location, pnfsid):
     """
     result = execute_admin_command(ssh, "\s " + location + " rep ls " + pnfsid)
     if result:
+        if result[0].find("Entry not in repository") != -1:
+            return []
         return result[0].split()
     else:
         return []
@@ -178,12 +183,41 @@ def mark_precious_on_location(ssh, pool, pnfsid):
     return True
 
 
+def set_sticky(ssh, pnfsid):
+    """
+    marks pnfsid sticky alll locations as precious
+    """
+    result = execute_admin_command(ssh, "\sl " + pnfsid + " rep set sticky -l=86400000 -o=admin " + pnfsid + "  on")
+    return True
+
+def set_unsticky(ssh, pnfsid):
+    """
+    marks pnfsid sticky alll locations as precious
+    """
+    result = execute_admin_command(ssh, "\sl " + pnfsid + " rep set sticky -o=admin " + pnfsid + "  off")
+    return True
+
+def set_sticky_on_location(ssh, pool, pnfsid):
+    """
+    marks pnfsid sticky alll locations as precious
+    """
+    result = execute_admin_command(ssh, "\s " + pool  + " rep set sticky -l=86400000 -o=admin " + pnfsid + "  on")
+    return True
+
+def set_unsticky_on_location(ssh, pool, pnfsid):
+    """
+    marks pnfsid sticky alll locations as precious
+    """
+    result = execute_admin_command(ssh, "\s " + pool + " rep set sticky -o=admin " + pnfsid + "  off")
+    return True
+
+
+
 def clear_file_cache_location(ssh, pool, pnfsid):
     """
     clear file cache location
     """
     result = execute_admin_command(ssh, "\sn clear file cache location  " + pnfsid + " " + pool)
-    print_message("Cleared file cache location %s %s %s" % (pnfsid, pool, result, ))
     return True
 
 def get_precious_fraction(ssh, pool):
@@ -211,6 +245,8 @@ def get_active_pools_in_pool_group(ssh, pgroup):
         i = line.strip()
         if not i:
             continue
+        if i.strip().startswith("nested groups "):
+            break
         if i.strip().startswith("poolList :"):
             hasPoolList = True
             continue
@@ -218,6 +254,29 @@ def get_active_pools_in_pool_group(ssh, pgroup):
             parts = i.split()
             if parts[1].find("mode=disabled") != -1:
                 continue
+            pool = parts[0].strip()
+            pools.append(pool)
+    return pools
+
+
+def get_all_pools_in_pool_group(ssh, pgroup):
+    """
+    Get list of pools in a  pool group
+    """
+    result = execute_admin_command(ssh, "\s PoolManager  psu ls pgroup -a " + pgroup)
+    pools = []
+    hasPoolList = False
+    for line in result:
+        i = line.strip()
+        if not i:
+            continue
+        if i.strip().startswith("nested groups "):
+            break
+        if i.strip().startswith("poolList :"):
+            hasPoolList = True
+            continue
+        if hasPoolList:
+            parts = i.split()
             pool = parts[0].strip()
             pools.append(pool)
     return pools
@@ -335,13 +394,21 @@ class StageWorker(multiprocessing.Process):
                 connection = pool.connection()
                 cursor = connection.cursor()
                 try:
-                    cursor.execute("select f.bfid, f.pnfs_id, f.crc, f.size "
+                    cursor.execute("select f.bfid, f.pnfs_id, f.crc, f.size, f.location_cookie as cookie "
                                    "from file f inner join volume v "
                                    "on v.id = f.volume "
                                    "where v.label = %s "
                                    "and f.deleted = 'n' "
                                    "and f.package_id is null "
-                                   "order by f.location_cookie asc", (label, ))
+                                   "union "
+                                   "select f1.bfid, f1.pnfs_id, f1.crc, f1.size, f2.location_cookie as cookie "
+                                   "from file f1 inner join file f2 on f2.bfid = f1.package_id "
+                                   "inner join volume v on v.id = f2.volume "
+                                   "where f2.bfid = f2.package_id "
+                                   "and v.label = %s "
+                                   "and f1.deleted = 'n' "
+                                   "and f2.deleted = 'n' "
+                                   "order by cookie asc", (label, label, ))
                     res = cursor.fetchall()
                     connection.commit()
                     if not res:
@@ -387,6 +454,7 @@ class StageWorker(multiprocessing.Process):
             print_message("Doing label %s, number of files %d" % (label, number_of_files))
             cached = loop = count = migrated = 0
             pools = get_active_pools_in_pool_group(ssh, POOL_GROUP)
+            right_pools = get_all_pools_in_pool_group(ssh, DESTONATION_GROUP)
             while files:
                 count += 1
                 bfid, pnfsid, crc, fsize = files.pop(0)
@@ -395,8 +463,9 @@ class StageWorker(multiprocessing.Process):
                     locations = get_locations(ssh, pnfsid)
                 except:
                     pass
+                right_locations = [i for i in locations if i in right_pools]
                 locations = [i for i in locations if i in pools]
-                if not locations:
+                if not right_locations:
                     files.append((bfid, pnfsid, crc, fsize))
                     try: 
                         stage(ssh, self.pool, pnfsid)
@@ -407,6 +476,17 @@ class StageWorker(multiprocessing.Process):
                         
                 else:
                     cached += 1
+#                    if not right_locations:
+#                        for l in locations:
+#                            try:
+#                                rc = set_sticky_on_location(ssh, l, pnfsid)
+#                            except:
+#                                print_error("Failed to stick %s on %s " % (pnfsid, l ))
+#                                pass
+#
+
+
+#                    
 #                    if len(locations) == 1:
 #                        repls = rep_ls(ssh, location, pnfsid)
 #                        if repls:
@@ -646,6 +726,8 @@ def main():
 
     ssh = get_shell()
     pools = get_active_pools_in_pool_group(ssh, POOL_GROUP)
+    pools = ["rw-stkendca2201-1",]
+
     cpu_count = len(pools)
     ssh.close()
 
