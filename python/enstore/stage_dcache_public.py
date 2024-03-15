@@ -47,7 +47,7 @@ SSH_HOST = "fndca"
 SSH_PORT = 24223
 SSH_USER = "enstore"
 POOL_GROUP = "StagePools"
-DESTONATION_GROUP = "readWritePools"
+DESTINATION_GROUP = "readWritePools"
 
 
 def execute_command(cmd):
@@ -454,7 +454,7 @@ class StageWorker(multiprocessing.Process):
             print_message("Doing label %s, number of files %d" % (label, number_of_files))
             cached = loop = count = migrated = 0
             pools = get_active_pools_in_pool_group(ssh, POOL_GROUP)
-            right_pools = get_all_pools_in_pool_group(ssh, DESTONATION_GROUP)
+            right_pools = get_all_pools_in_pool_group(ssh, DESTINATION_GROUP)
             while files:
                 count += 1
                 bfid, pnfsid, crc, fsize = files.pop(0)
@@ -726,7 +726,6 @@ def main():
 
     ssh = get_shell()
     pools = get_active_pools_in_pool_group(ssh, POOL_GROUP)
-    pools = ["rw-stkendca2201-1",]
 
     cpu_count = len(pools)
     ssh.close()
