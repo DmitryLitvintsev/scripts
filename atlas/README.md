@@ -1,10 +1,10 @@
-Collecton of procedures to populate srm spacemanager database
+Collecton of procedures to populate SRM spacemanager database
 =============================================================
 
 The procedure consists of three steps:
    1. run SQL query to generate CSV file flat list of files in the tree
-   1. run python script on the CSV file to prduce one huge populate SQL file
-   1. run `psql ... -f <populate sql file>
+   1. run python script on the CSV file to produce one huge populate SQL file
+   1. run `psql ... -f <populate sql file>`
 
 Collect data from namespace tree
 ---------------------------------
