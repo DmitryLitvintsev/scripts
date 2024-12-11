@@ -62,7 +62,7 @@ psql -U <user> chimera
 chimera# select f_push_tag(pnfsid2imumber('<pnfsid>'), 'WriteToken');
 ```
 
-<pnfsid> in the above is pnfs id returned by this command:
+`<pnfsid>` in the above is pnfs id returned by this command:
 
 ```
 cat /path/to/the/tree/top/directory/under/which/the/data/is/be/".(id)(stored)"
