@@ -60,7 +60,7 @@ Then the tag needs to propagate. For this :
 
 ```
 psql -U <user> chimera
-chimera# select f_push_tag(pnfsid2imumber('<pnfsid>'), 'WriteToken');
+chimera# select f_push_tag(pnfsid2inumber('<pnfsid>'), 'WriteToken');
 ```
 
 `<pnfsid>` in the above is pnfs id returned by this command:
