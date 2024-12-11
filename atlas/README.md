@@ -5,6 +5,7 @@ The procedure consists of three steps:
    1. run SQL query to generate CSV file flat list of files in the tree
    1. run python script on the CSV file to produce one huge populate SQL file
    1. run `psql ... -f <populate sql file>`
+   1. define `WiteToken` tag on the top directory of the tree 
 
 Collect data from namespace tree
 ---------------------------------
