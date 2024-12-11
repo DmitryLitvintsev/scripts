@@ -39,7 +39,7 @@ Run the populate SQL on spacemanager DB
 ---------------------------------------
 
 ```
-psql -U <user> postgres spacemanager  -d populate.sql
+psql -U <user> postgres spacemanager  -f populate.sql
 ```
 
 
