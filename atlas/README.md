@@ -1,4 +1,4 @@
-Collecton of procedures to populate SRM spacemanager database
+Procedures to populate SRM spacemanager database
 =============================================================
 
 The procedure consists of three steps:
