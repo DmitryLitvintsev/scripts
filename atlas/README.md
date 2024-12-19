@@ -1,17 +1,22 @@
-Collecton of procedures to populate srm spacemanager database
+Procedures to populate SRM spacemanager database
 =============================================================
 
 The procedure consists of three steps:
    1. run SQL query to generate CSV file flat list of files in the tree
-   1. run python script on the CSV file to prduce one huge populate SQL file
-   1. run `psql ... -f <populate sql file>
+   1. run python script on the CSV file to produce one huge populate SQL file
+   1. run `psql ... -f <populate sql file>`
+   1. define `WriteToken` tag on the top directory of the tree 
 
 Collect data from namespace tree
 ---------------------------------
 
 Edit file `file_list.sql` and replace `000500000000000000214240` with pnfsid of the top level directory of the tree. Obtain pnfsid like so. Using PNFS mount
 
-cat "/path/to/the/tree/top/directory/under/which/the/data/is/be/".(id)(stored)"
+```
+cat /path/to/the/tree/top/directory/under/which/the/data/is/".(id)(stored)"
+```
+Above is for having `/path/to/the/tree/top/directory/under/which/the/data/is/stored` as the top of the directory tree under which the data is stoted imn the namespace 
+
 
 Then run this on chimera db
 
@@ -35,8 +40,32 @@ Run the populate SQL on spacemanager DB
 ---------------------------------------
 
 ```
-psql -U <user> postgres spacemanager  -d populate.sql
+psql -U <user> spacemanager  -f populate.sql
 ```
 
 
 replace `<user>` with actual postgresql role and if necessary db name
+
+Furnish directory tag:
+----------------------
+
+You also have to do :
+
+```
+cd /path/to/the/tree/top/directory/under/which/the/data/is/stored
+echo "5" > ".(tag)(WriteToken)"
+```
+
+Then the tag needs to propagate. For this :
+
+```
+psql -U <user> chimera
+chimera# select f_push_tag(pnfsid2inumber('<pnfsid>'), 'WriteToken');
+```
+
+`<pnfsid>` in the above is pnfs id returned by this command:
+
+```
+cat /path/to/the/tree/top/directory/under/which/the/data/is/".(id)(stored)"
+```
+
