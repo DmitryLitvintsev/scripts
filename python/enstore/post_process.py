@@ -125,7 +125,7 @@ WHERE bfid=%s
 def print_progress(sg=None):
     connection = None
     try:
-        connection = psycopg2.connect(dbname="enstoredb",
+        connection = psycopg2.connect(database="enstoredb",
                                       host="enstore00",
                                       port=8888,
                                       user="enstore")
@@ -151,7 +151,7 @@ def print_progress(sg=None):
 def updater():
     cursor = connection = None
     try:
-        connection = psycopg2.connect(dbname="enstoredb",
+        connection = psycopg2.connect(database="enstoredb",
                                       host="enstore00",
                                       port=8888,
                                       user="enstore")
