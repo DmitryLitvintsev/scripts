@@ -22,24 +22,10 @@ import psycopg2
 import psycopg2.extras
 
 
-
-#migration copy -permanent -storage=GM2.gm2_daq_run5 -tmode=same+admin(1209600) -sticky -smode=removable -select=random -target=pgroup GM2Pools
-#migration copy -permanent -concurrency=5 -tmode=same+admin(1209600) -sticky -smode=removable -select=random -target=pgroup GM2Pools
-#migration copy -permanent -concurrency=5 -tmode=same+admin(7776000) -sticky -smode=removable -select=random -target=pgroup GM2Pools
-#migration copy -permanent -concurrency=5 -tmode=same+admin(604800) -sticky -smode=removable -select=random -target=pgroup readWritePools
-#migration move -state=precious -concurrency=2 -select=random rw-pubstor2202-1 rw-pubstor2202-2 rw-pubstor2205-1 rw-pubstor2206-1 rw-stkendca1901-1 rw-stkendca1901-2 rw-stkendca1902-2 rw-stkendca1903-2 rw-stkendca1904-1
-#\s p-nova* migration move -state=precious -concurrency=2 -select=random rw-pubstor2202-1 rw-pubstor2202-2 rw-pubstor2205-1 rw-pubstor2206-1 rw-stkendca1901-1 rw-stkendca1901-2 rw-stkendca1902-2 rw-stkendca1903-2 rw-stkendca1904-1
-
-
 UPDATE_QUERY = """
                update t_inodes set iaccess_latency = 0, iretention_policy = 0
                       where inumber = %s and iretention_policy = 2 and iaccess_latency = 1
                """
-
-
-HOUR = 3600
-DAY = 24 * 3600
-MONTH = 30 * DAY
 
 try:
     from DBUtils.PooledDB import PooledDB
@@ -60,7 +46,7 @@ HOSTNAME = socket.gethostname()
 SSH_HOST = "fndca"
 SSH_PORT = 24223
 SSH_USER = "enstore"
-POOL_GROUP = "StagePools"
+
 
 def unpin(ssh, pnfsid):
     """
@@ -619,7 +605,8 @@ def main():
     for i in range(cpu_count):
         queue.put(None)
 
-    map(lambda x: x.join(), workers);
+    for worker in workers:
+        worker.join()
 
     kinitWorker.stop = True
     kinitWorker.terminate()
