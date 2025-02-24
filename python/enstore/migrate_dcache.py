@@ -73,6 +73,7 @@ POOL_GROUP = "CdfWritePools"
 
 
 # v.media_type in ('LTO8', 'LTO9')
+
 UPDATER_SQL = """
 UPDATE file_migrate
 SET dst_bfid = t.bfid
@@ -84,7 +85,9 @@ FROM
    INNER JOIN volume v ON f.volume = v.id
    AND f.deleted = 'n'
    AND v.file_family like '%MIGRATION2'
-   AND v.library = 'TFF2-LTO9M'
+--   AND v.storage_group = 'cms'
+   AND v.library in ('TFF2-LTO9M', 'TFF1-LTO9M')
+--   AND v.media_type in ('LTO8', 'LTO9')
    AND fm.dst_bfid IS NULL) AS t
 WHERE t.src_bfid = file_migrate.src_bfid
   AND file_migrate.dst_bfid IS NULL
@@ -100,7 +103,7 @@ INNER JOIN volume v on v.id = f1.volume
 WHERE f.package_id = f.bfid
   AND fm.dst_bfid IS NOT NULL
   AND f1.package_id IS NULL
-  AND v.file_family like '%MIGRATION2'
+--   AND v.file_family like '%MIGRATION2'
   AND v.library = 'TFF2-LTO9M'
 """
 
@@ -284,6 +287,14 @@ def mark_precious(ssh, pnfsid):
     marks pnfsid on all locations as precious
     """
     result = execute_admin_command(ssh, "\sl " + pnfsid + " rep set precious " + pnfsid)
+    return True
+
+
+def mark_cached(ssh, pnfsid):
+    """
+    marks pnfsid on all locations as cached
+    """
+    result = execute_admin_command(ssh, "\sl " + pnfsid + " rep set cached " + pnfsid)
     return True
 
 
@@ -788,6 +799,50 @@ def mark_migrated(pool, entry):
 
             #res = update(connection, "update file set deleted = 'y' where bfid = %s", (bfid, ))
             res = update(connection, "update file set deleted = 'y' where pnfs_id = %s and deleted = 'n'", (pnfsid, ))
+            return True
+        except Exception as e:
+            print_error("%s Failed to insert into file_migrate %s %s %s " % (label, bfid, pnfsid, str(e)))
+            pass
+    except Exception as e:
+        print_error("%s Failed to get connection when inserting into file_migrate %s" % (label, str(e),))
+        pass
+    finally:
+        try:
+            if connection:
+                connection.close()
+        except Exception:
+            pass
+    return False
+
+
+def mark_unmigrated(pool, entry):
+    """
+    Revert file to original state so it can be re-migrated
+
+    :param pool: database connection pool
+    :type pool: PooledDB
+
+    :param entry: (label, bfid, file, src) source data
+    :type entry: tuple
+
+    :param destination: destination full file path name
+    :type destination: str
+
+    :param check: Mark checked or nor
+    :type check: bool
+
+    :return: true / false
+    :rtype: bool
+    """
+    connection = None
+    label, bfid, pnfsid, crc, dcache_pool = entry
+    try:
+        connection = pool.connection()
+        try:
+            res = insert(connection, "delete from file_migrate where src_bfid = %s ",
+                                     (bfid, ))
+
+            res = update(connection, "update file set deleted = 'n' where bfid = %s and deleted = 'y'", (bfid, ))
             return True
         except Exception as e:
             print_error("%s Failed to insert into file_migrate %s %s %s " % (label, bfid, pnfsid, str(e)))
