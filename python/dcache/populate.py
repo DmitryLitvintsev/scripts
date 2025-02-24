@@ -61,9 +61,6 @@ def print_message(text):
         sys.stdout.flush()
 
 
-
-
-
 class Worker(multiprocessing.Process):
     def __init__(self, queue):
         super(Worker, self).__init__()
@@ -108,7 +105,8 @@ def main():
     for i in range(cpu_count):
         queue.put(None)
 
-    map(lambda x: x.join(), workers)
+    for worker in workers:
+        worker.join()
 
     print_message("**** FINISH ****")
 
