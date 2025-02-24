@@ -17,13 +17,14 @@ printLock = multiprocessing.Lock()
 
 BASE_PATH = "/pnfs/fs/usr/ssa_test/CTA/small"
 BASE_PATH = "/pnfs/fs/usr/ssa_test/CTA/large"
+BASE_PATH = "/pnfs/fs/usr/ssa_test/CTA/cern/5.11"
 
 MB = 1<<20
 
 printLock = multiprocessing.Lock()
 
 def write_file(name, file_size):
-    with open(name, "a") as f:
+    with open(name, "wb") as f:
         f.write(os.urandom(file_size))
 
 
@@ -99,6 +100,9 @@ def main():
         total_size += file_size
         number = random.randrange(100)
         name = "%s/%d/%s.data" % (BASE_PATH, number, str(uuid.uuid4()))
+        dir = os.path.dirname(name)
+        if not os.path.exists(dir):
+            os.mkdir(dir) 
         count += 1
         queue.put((name, file_size))
 
