@@ -304,7 +304,7 @@ def main():
     ssh.close()
 
     cpu_count = len(pools)
-    pools.remove("rw-gm2-pubstor2225-5")
+    #pools.remove("rw-gm2-pubstor2225-5")
     workers = []
     for pool in pools:
         worker = Worker(pool, configuration)
