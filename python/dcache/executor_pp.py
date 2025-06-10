@@ -26,7 +26,7 @@ if not CONFIG_FILE:
     CONFIG_FILE = "migration.yaml"
 
 
-HOSTNAME = socket.gethostname() + ".fnal.gov"
+HOSTNAME = socket.gethostname()
 SSH_HOST = "fndca"
 SSH_PORT = 24223
 SSH_USER = "enstore"
@@ -251,7 +251,7 @@ class Worker(multiprocessing.Process):
                         self.config.get("admin").get("user", SSH_USER))
         print_message(f"Doing {self.pool}")
 
-        pp = execute_admin_command(ssh, f"\s {self.pool} pp ls") 
+        pp = execute_admin_command(ssh, f"\s {self.pool} pp ls")
         for line in pp:
             parts = line.strip().split()
             request_id = parts[0]

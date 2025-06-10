@@ -26,11 +26,11 @@ if not CONFIG_FILE:
     CONFIG_FILE = "migration.yaml"
 
 
-HOSTNAME = socket.gethostname() + ".fnal.gov"
+HOSTNAME = socket.gethostname()
 SSH_HOST = "fndca"
 SSH_PORT = 24223
 SSH_USER = "enstore"
-POOL_GROUP = "readWritePools"
+POOL_GROUP = "DuneStagingPools"
 
 
 def execute_command(cmd):
@@ -262,7 +262,7 @@ class Worker(multiprocessing.Process):
                                        f"\s {self.pool} mover kill {request_id}")
             counter += 1
         print_message(f"Done pool {self.pool}, cancelled {counter} p2p requests")
-        
+
 
 def main():
     """
