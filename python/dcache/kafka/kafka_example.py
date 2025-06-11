@@ -19,7 +19,7 @@ _LOGGER = logging.getLogger()
 def main():
 
     consumer = KafkaConsumer("ingest.dcache.billing",
-                             bootstrap_servers="lssrv03:9092,lssrv04:9092,lssrv05:9092",
+                             bootstrap_servers="lskafka:9092",
                              value_deserializer=lambda m: json.loads(m.decode("ascii")))
     for msg in consumer:
         message = msg.value
