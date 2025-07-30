@@ -4,10 +4,11 @@
 #set output 'migration.pdf'
 
 set terminal postscript color solid
-set output 'stores_and_restores.ps'
+set output 'stores_and_restores_2_years.ps'
 set title 'Stores / Restors on public system, weekly volume'
 
-DATA = 'data/stores_restores.csv'
+#DATA = 'data/stores_restores.csv'
+DATA = 'data/stores_restores_combined.csv'
 
 
 set key invert reverse right outside
