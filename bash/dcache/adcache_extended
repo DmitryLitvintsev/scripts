@@ -1,0 +1,38 @@
+#!/bin/bash
+set -u
+
+thisHost=`uname -n`
+enstorekt="/fnal/ups/kt/enstorekt"
+port=24223
+host="localhost"
+user="enstore"
+thisUser=`whoami`
+
+if [ ! -e ${enstorekt} ]; then
+    echo "enstorkt ${enstorkt} does not exit on ${thisHost}" 1>&2
+    exit 1
+fi
+
+OLDKRB5CCNAME=${KRB5CCNAME:-NONE}
+case ${thisUser} in
+    "enstore")
+	KRB5CCNAME=/tmp/krb5cc_enstore_$$;export KRB5CCNAME
+	kinit -k -t ${enstorekt} enstore/cd/${thisHost}
+	ssh -p $port -o StrictHostKeyChecking=no ${user}@${host} "$@"
+	rc=$?
+	kdestroy
+	;;
+    "root")
+	KRB5CCNAME=/tmp/krb5cc_root_$$;export KRB5CCNAME
+	kinit -k host/${thisHost}
+	ssh -p $port -o StrictHostKeyChecking=no ${user}@${host} "$@"
+	rc=$?
+        kdestroy
+	;;
+    *)
+	;;
+esac
+
+if [ $OLDKRB5CCNAME != "NONE" ]; then KRB5CCNAME=$OLDKRB5CCNAME; fi
+
+exit $rc
