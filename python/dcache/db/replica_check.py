@@ -77,7 +77,7 @@ def main():
             return 1
         return 0
     except Exception as e:
-        print_error(f"Failed to query DN {e}")
+        print_error(f"Failed to query DB {e}")
         return 1
     finally:
         for i in (cursor, db):
