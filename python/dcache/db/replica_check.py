@@ -86,7 +86,6 @@ def main():
                     i.close()
                 except:
                     pass
-        return 0
 
 
 if __name__ == "__main__":
