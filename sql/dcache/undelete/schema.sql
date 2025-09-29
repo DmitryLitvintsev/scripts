@@ -1,5 +1,5 @@
 CREATE TABLE public.t_deleted_paths (
-    ipnfsid character varying(36)  CONSTRAINT t_deleted_files PRIMARY KEY,
+    ipnfsid character varying(36)  CONSTRAINT t_deleted_paths_pkey PRIMARY KEY,
     iname character varying(4096) NOT NULL,
     imode integer NOT NULL,
     iuid integer NOT NULL,
