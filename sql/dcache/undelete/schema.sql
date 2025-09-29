@@ -6,6 +6,7 @@ CREATE TABLE public.t_deleted_paths (
     igid integer NOT NULL,
     isize bigint NOT NULL,
     icrtime timestamp with time zone DEFAULT now() NOT NULL,
+    ideltime timestamp with time zone DEFAULT now() NOT NULL,
     iaccess_latency smallint
 )
 WITH (fillfactor='75', autovacuum_enabled='true');
@@ -19,6 +20,7 @@ BEGIN
             SELECT INTO link_count count(*) FROM t_dirs WHERE ichild = OLD.ichild;
                 IF link_count = 1 THEN
                     INSERT INTO public.t_deleted_paths
+		        (ipnfsid, iname, imode, iuid, igid, isize, icrtime, ideltime, iaccess_latency)
                         SELECT ipnfsid,
                                inumber2path(inumber),
                                imode,
@@ -26,6 +28,7 @@ BEGIN
                                igid,
                                isize,
                                icrtime,
+			       now(),
                                iaccess_latency
                         FROM t_inodes
                         WHERE inumber = OLD.ichild AND itype = 32768;
