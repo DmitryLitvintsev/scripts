@@ -10,31 +10,33 @@ CREATE TABLE public.t_deleted_paths (
 )
 WITH (fillfactor='75', autovacuum_enabled='true');
 
-CREATE OR REPLACE FUNCTION public.f_save_deleted_path() RETURNS trigger
-       LANGUAGE plpgsql
-                AS $$
-                   BEGIN
-                        IF (TG_OP = 'DELETE') THEN
-                           IF EXISTS (SELECT 1 FROM t_locationinfo WHERE inumber = OLD.ichild and itype = 0)
-                           THEN
-                                INSERT INTO public.t_deleted_paths
-                                       SELECT ipnfsid,
-                                       inumber2path(inumber),
-                                       imode,
-                                       iuid,
-                                       igid,
-                                       isize,
-                                       icrtime,
-                                       iaccess_latency FROM t_inodes WHERE inumber = OLD.ichild and itype = 32768;
-                           END IF;
-                           RETURN OLD;
-                        END IF;
-                   END;
-                   $$;
-
+CREATE OR REPLACE FUNCTION f_save_deleted_path() RETURNS TRIGGER AS $$
+DECLARE
+    link_count BIGINT;
+BEGIN
+    IF (TG_OP = 'DELETE') THEN
+        IF EXISTS (SELECT 1 FROM t_locationinfo WHERE inumber = OLD.ichild and itype = 0) THEN
+            SELECT INTO link_count count(*) FROM t_dirs WHERE ichild = OLD.ichild;
+                IF link_count = 1 THEN
+                    INSERT INTO public.t_deleted_paths
+                        SELECT ipnfsid,
+                               inumber2path(inumber),
+                               imode,
+                               iuid,
+                               igid,
+                               isize,
+                               icrtime,
+                               iaccess_latency
+                        FROM t_inodes
+                        WHERE inumber = OLD.ichild AND itype = 32768;
+                END IF;
+        END IF;
+        RETURN OLD;
+    END IF;
+END;
+$$
+LANGUAGE plpgsql;
 
 ALTER FUNCTION public.f_save_deleted_path() OWNER TO enstore;
-
-
 
 CREATE TRIGGER tgr_save_deleted_path BEFORE DELETE ON public.t_dirs FOR EACH ROW EXECUTE FUNCTION public.f_save_deleted_path();
