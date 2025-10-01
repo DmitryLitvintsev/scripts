@@ -28,7 +28,7 @@ CONFIG_FILE = os.getenv("TAPE_SRR_CONFIG")
 if not CONFIG_FILE:
     CONFIG_FILE = "tape_srr.yaml"
 
-FILE_NAME="/var/www/www_pages/FNAL-WLCG-tape-statisics.json"
+FILE_NAME="/var/www/www_pages/FNAL-WLCG-tape-statistics.json"
 
 
 def print_error(text):
@@ -209,6 +209,8 @@ def main():
                     "avgtaperemounts" : 0,
                     "readbytes24h" : 0,
                     "writebytes24h" : 0,
+                    "totalmounts24h": 0,
+                    "uniquemounts24h": 0,
                     "timestamp": int(time.time()),
                     "vos" : [row.get("vo_name"), ]
                     })
