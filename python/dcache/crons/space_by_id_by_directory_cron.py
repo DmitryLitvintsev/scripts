@@ -16,24 +16,22 @@ from urllib.parse import urlparse
 import subprocess
 
 SPACE_QUERY = (
-    """
-    WITH RECURSIVE paths(number, path, TYPE, fsize, uid, gid) AS (
-      VALUES (pnfsid2inumber(%s), '', 16384, 0::BIGINT, 0, 0)
-      UNION
-      SELECT d.ichild, path || '/' || d.iname, i.itype, i.isize,
-             i.iuid, i.igid
-      FROM t_dirs d, t_inodes i, paths p
-      WHERE p.TYPE = 16384
-        AND d.iparent = p.number
-        AND d.iname != '.'
-        AND d.iname != '..'
-        AND i.inumber = d.ichild)
-    SELECT SUM(p.fsize::bigint) AS total, count(*), uid, gid
-    FROM paths p
-    WHERE p.TYPE = 32768
-    GROUP BY uid, gid
-    ORDER BY total DESC
-    """
+    'WITH RECURSIVE paths(number, path, TYPE, fsize, uid, gid) AS ('
+    '  VALUES (pnfsid2inumber(%s), \'\', 16384, 0::BIGINT, 0, 0)'
+    '  UNION'
+    '  SELECT d.ichild, path || \'/\' || d.iname, i.itype, i.isize,'
+    '         i.iuid, i.igid'
+    '  FROM t_dirs d, t_inodes i, paths p'
+    '  WHERE p.TYPE = 16384'
+    '    AND d.iparent = p.number'
+    '    AND d.iname != \'.\''
+    '    AND d.iname != \'..\''
+    '    AND i.inumber = d.ichild)'
+    ' SELECT SUM(p.fsize::bigint) AS total, count(*), uid, gid'
+    ' FROM paths p'
+    ' WHERE p.TYPE = 32768'
+    ' GROUP BY uid, gid'
+    ' ORDER BY total DESC'
 )
 
 def create_connection(uri):
