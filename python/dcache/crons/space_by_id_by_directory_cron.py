@@ -4,16 +4,19 @@
 Script to collect user space by id by directory using PostgreSQL and pnfs
 filesystem. Converted to Python 3 and multiprocessing, PEP8 compliant.
 """
+import json
 import os
 import sys
 import time
-import pickle
 import multiprocessing
 from multiprocessing import Process, Lock, Manager, Queue
 import psycopg2
 import psycopg2.extras
 from urllib.parse import urlparse
 import subprocess
+
+_TOP_DIR = "/pnfs/fs/usr"
+_JSON_FILE = "/tmp/user_space_by_id_by_directory.json"
 
 SPACE_QUERY = (
     'WITH RECURSIVE paths(number, path, TYPE, fsize, uid, gid) AS ('
@@ -45,22 +48,24 @@ def create_connection(uri):
     return connection
 
 class Worker(Process):
-    def __init__(self, task_queue, user_space,
+    def __init__(self, task_queue, space_summary,
                  lock, print_lock, db_uri):
         super().__init__()
         self.task_queue = task_queue
-        self.user_space = user_space
         self.lock = lock
+        self.space_summary = space_summary
         self.print_lock = print_lock
         self.db_uri = db_uri
 
     def run(self):
         db = create_connection(self.db_uri)
-        while True:
-            data = self.task_queue.get()
-            if data is None:
-                break
+        user_space = {}
+        for data in iter(self.task_queue.get, None):
             direntry, d, pnfsid = data
+            if direntry not in user_space:
+                user_space[direntry] = {}
+                if d not in user_space[direntry]:
+                    user_space[direntry][d] = []
             cursor = None
             with self.print_lock:
                 sys.stderr.write(
@@ -73,10 +78,9 @@ class Worker(Process):
                 cursor.execute(SPACE_QUERY, (pnfsid,))
                 res = cursor.fetchall()
                 for row in res:
-                    with self.lock:
-                        self.user_space[direntry][d].append(
-                            (row[2], row[3], row[1], row[0])
-                        )
+                    user_space[direntry][d].append(
+                        (int(row[2]), int(row[3]), int(row[1]), int(row[0]))
+                    )
             except Exception as exc:
                 with self.print_lock:
                     sys.stderr.write(
@@ -89,9 +93,11 @@ class Worker(Process):
                 if cursor:
                     cursor.close()
         db.close()
+        with self.lock:
+            self.space_summary.update(user_space)
 
 def main():
-    top_dir = "/pnfs/fs/usr"
+    top_dir = _TOP_DIR
     if not os.path.exists(top_dir):
         sys.stderr.write(
             f"{top_dir} does not exist, or not mounted\n"
@@ -101,7 +107,7 @@ def main():
 
     cpu_count = multiprocessing.cpu_count()
     manager = Manager()
-    user_space = manager.dict()
+    space_summary = manager.dict()
     task_queue = Queue(maxsize=10000)
     lock = Lock()
     print_lock = Lock()
@@ -113,7 +119,7 @@ def main():
     )
 
     workers = [
-        Worker(task_queue, user_space, lock, print_lock, db_uri)
+        Worker(task_queue, space_summary, lock, print_lock, db_uri)
         for _ in range(cpu_count)
     ]
     for worker in workers:
@@ -127,11 +133,6 @@ def main():
         for d in os.listdir(de):
             if d != "persistent":
                 continue
-            with lock:
-                if direntry not in user_space:
-                    user_space[direntry] = manager.dict()
-                if d not in user_space[direntry]:
-                    user_space[direntry][d] = manager.list()
             id_path = os.path.join(de, f".(id)({d})")
             pnfsid = None
             try:
@@ -154,11 +155,9 @@ def main():
     for worker in workers:
         worker.join()
 
-    out_path = "/tmp/user_space_by_id_by_directory.data"
-    # The file is opened in binary mode, which is correct for pickle.dump
-    # type: ignore[assignment]
-    with open(out_path, "wb") as f:  # type: ignore
-        pickle.dump(dict(user_space), f)
+    with open(_JSON_FILE, "w") as f:
+        json.dump(dict(space_summary), f, indent=4, sort_keys=True)
+        #pickle.dump(dict(space_summary), f)
     enrcp_cmd = [
         os.environ.get("ENSTORE_DIR", "") + "/sbin/enrcp",
         out_path,
