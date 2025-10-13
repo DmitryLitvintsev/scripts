@@ -129,7 +129,8 @@ class RemoteCopier:
             except Exception as exc:
                 logger.warning("Error closing connection: %s", exc)
 
-
+# query below excludes /pnfs/fs/usr/icarus/persistent/calibration
+# and /pnfs/fs/usr/uboone/persistent/PublicAccess
 SPACE_QUERY = (
     "WITH RECURSIVE paths(number, path, TYPE, fsize, uid, gid) AS ("
     "  VALUES (pnfsid2inumber(%s), '', 16384, 0::BIGINT, 0, 0)"
@@ -139,6 +140,7 @@ SPACE_QUERY = (
     "  FROM t_dirs d, t_inodes i, paths p"
     "  WHERE p.TYPE = 16384"
     "    AND d.iparent = p.number"
+    "    AND d.ichild not in (5597689247, 7801204967)"
     "    AND d.iname != '.'"
     "    AND d.iname != '..'"
     "    AND i.inumber = d.ichild)"
