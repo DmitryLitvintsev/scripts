@@ -1,0 +1,7 @@
+chimera_db: "postgresql://user:pass@host:port/dbname"
+cta_db: "postgresql://user:pass@host:port/dbname"
+
+admin:
+  host: dcache
+  port: 24223
+  user: enstore
