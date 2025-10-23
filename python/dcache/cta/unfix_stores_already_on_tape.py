@@ -1,10 +1,10 @@
 #!/usr/bin/env python3
 
 """
-Script to fix stores that are already on tape.
+Script to fix files in chimera that were declared as
+stored by mistake.
 
-This script handles files that are already stored on tape but need their
-database entries updated to reflect this status.
+Takes a file containing list of pnfsids to list.
 """
 
 from __future__ import annotations
@@ -501,8 +501,8 @@ class Worker(Process):
                 self.config["admin"].get("user", SSH_USER)
             )
 
-            for pnfsid, storage_class in iter(self.queue.get, None):
-                self._process_file(ssh, cta_db, chimera_db, pnfsid, storage_class)
+            for pnfsid in iter(self.queue.get, None):
+                self._process_file(ssh, cta_db, chimera_db, pnfsid)
 
         except Exception as exc:
             logger.error("Worker failed: %s", exc)
@@ -520,7 +520,6 @@ class Worker(Process):
         cta_db: psycopg2.extensions.connection,
         chimera_db: psycopg2.extensions.connection,
         pnfsid: str,
-        storage_class: str
     ) -> None:
         """Process a single file.
 
@@ -529,85 +528,42 @@ class Worker(Process):
             cta_db: CTA database connection
             chimera_db: Chimera database connection
             pnfsid: PNFS ID to process
-            storage_class: Storage class
         """
-
-        # select only entries that are 12 hours old
-        # to avoid messing with files that are stored in CTA
-        # but are still in 'st ls' queue waiting for CTA notification
-        # plus some multiple copy files may take really long time to complete
         rows = select(
             cta_db,
             "select disk_instance_name, "
             "'cta://cta/'||disk_file_id||'?archiveid='||archive_file_id as location "
-            "from archive_file where disk_file_id = %s and creation_time < %s",
-            (pnfsid, int(time.time()) - 6 * 3600)
+            "from archive_file where disk_file_id = %s",
+            (pnfsid,)
         )
 
-        if not rows:
+        if rows:
             return
 
-        disk_instance_name = rows[0]["disk_instance_name"]
-        location = rows[0]["location"]
-        storage_group, file_family = storage_class.split(".")
+        logger.info(f"{pnfsid} is not stored in CTA")
 
-        logger.info(
-            "%s %s %s %s %s",
-            pnfsid,
-            disk_instance_name,
-            location,
-            storage_group,
-            file_family
-            )
 
-        result = select(
+        result = insert(
             chimera_db,
-            "select count(*) from t_locationinfo "
-            "where itype = 0 and inumber = "
+            "delete from t_storageinfo where inumber = "
             "(select inumber from t_inodes where ipnfsid = %s)",
             (pnfsid,)
         )
 
-        if result[0]["count"] != 0:
-            logger.error(
-                "File has location in chimera %s %s",
-                pnfsid,
-                storage_class
-            )
-            return
-
-        logger.info(
-            "%s %s %s %s %s",
-            pnfsid,
-            disk_instance_name,
-            location,
-            storage_group,
-            file_family
-        )
-
         insert(
             chimera_db,
-            "insert into t_storageinfo "
-            "(inumber, ihsmname, istoragegroup, istoragesubgroup) "
-            "values (pnfsid2inumber(%s), 'cta', %s, %s)",
-            (pnfsid, storage_group, file_family)
-        )
-
-        insert(
-            chimera_db,
-            "insert into t_locationinfo "
-            "(inumber, itype, ipriority, ictime, iatime, istate, ilocation) "
-            "values (pnfsid2inumber(%s), 0, 10, now(), now(), 1, %s)",
-            (pnfsid, location)
+            "delete from t_locationinfo "
+            "where itype = 0 and inumber = (select inumber from t_inodes where ipnfsid = %s)",
+            (pnfsid, )
         )
 
         execute_admin_command(
             ssh,
-            f"\\sl {pnfsid} rep set cached {pnfsid}"
+            f"\\sl {pnfsid} rep set precious {pnfsid}"
         )
         execute_admin_command(
             ssh,
-            f"\\sl {pnfsid} st kill {pnfsid}"
+            f"\\sl {pnfsid} st flush pnfsid {pnfsid}"
         )
 
 
@@ -623,6 +579,14 @@ def main() -> None:
         type=int,
         default=multiprocessing.cpu_count(),
         help="Number of worker processes to spawn"
+    )
+
+    parser.add_argument(
+        "--file",
+        type=str,
+        default=None,
+        metavar="FILE",
+        help="File with list of pnfsids to process",
     )
 
     parser.add_argument(
@@ -676,31 +640,12 @@ def main() -> None:
     kinit_worker.start()
 
     try:
-        # Get initial SSH connection
-        ssh = get_shell(
-            config["admin"].get("host", SSH_HOST),
-            config["admin"].get("port", SSH_PORT),
-            config["admin"].get("user", SSH_USER)
-        )
 
-        # Get all stores
-        all_stores = execute_admin_command(ssh, "\\s r*,w* st ls")
-        pnfsids = []
-
-        # Parse store information
-        for line in all_stores:
-            if not line:
-                continue
-            parts = line.strip().split()
-            if len(parts) < 2:
-                continue
-            pnfsid = parts[-2]
-            if PNFSID_PATTERN.match(pnfsid):
-                storage_class = parts[-1].strip("'")
-                pnfsids.append((pnfsid, storage_class))
+        pnfsids = None
+        with open(args.file, "r") as f:
+            pnfsids = [i.strip() for i in f.readlines() ]
 
         logger.info("Found %d stores to process", len(pnfsids))
-        ssh.close()
 
         # Set up worker processes
         queue: Queue = Queue(maxsize=10000)
