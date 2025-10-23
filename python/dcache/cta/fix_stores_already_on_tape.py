@@ -541,7 +541,7 @@ class Worker(Process):
             "select disk_instance_name, "
             "'cta://cta/'||disk_file_id||'?archiveid='||archive_file_id as location "
             "from archive_file where disk_file_id = %s and creation_time < %s",
-            (pnfsid, int(time.time()) - 6 * 3600)
+            (pnfsid, int(time.time()) - 12 * 3600)
         )
 
         if not rows:
