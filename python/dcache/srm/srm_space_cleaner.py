@@ -122,12 +122,12 @@ class Worker(Process):
                             DELETE_SPACEFILE_ENTRY,
                             (pnfsid,)
                             )
-                        spacemanager_cursor.commit()
+                        spacemanager_db.commit()
                     except Exception as exc:
                         log_error(
                             f"Failed removing {pnfsid} from srmspacefile: {exc}"
                         )
-                        spacemanager_cursor.rollback()
+                        spacemanager_db.rollback()
         finally:
             for cursor in (chimera_cursor, spacemanager_cursor):
                 if cursor:
