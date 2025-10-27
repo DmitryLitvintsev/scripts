@@ -1,0 +1,2 @@
+chimera_db: postgresql://postgres:pass@localhost:5432/chimera
+spacemanager_db: postgresql://postgres:pass@localhost:5432/spacemanager
