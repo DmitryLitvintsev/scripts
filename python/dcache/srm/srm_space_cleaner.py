@@ -144,7 +144,10 @@ class Worker(Process):
 
 def main() -> None:
     """Main function to process space files."""
-    parser = argparse.ArgumentParser(description=__doc__)
+    parser = argparse.ArgumentParser(
+        formatter_class=argparse.ArgumentDefaultsHelpFormatter,
+        description=__doc__
+    )
 
     parser.add_argument(
         "--cpu-count",
