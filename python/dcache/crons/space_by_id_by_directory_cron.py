@@ -144,11 +144,11 @@ SPACE_QUERY = (
     "    AND d.iname != '.'"
     "    AND d.iname != '..'"
     "    AND i.inumber = d.ichild)"
-    " SELECT SUM(p.fsize::bigint) AS total, count(*), uid, gid"
+    " SELECT SUM(p.fsize::bigint) AS volume, count(*) as files, uid, gid"
     " FROM paths p"
     " WHERE p.TYPE = 32768"
     " GROUP BY uid, gid"
-    " ORDER BY total DESC"
+    " ORDER BY volume DESC"
 )
 
 
@@ -220,16 +220,23 @@ class Worker(Process):
 
                 for d, pnfsid in dirs:
                     if d not in user_space[direntry]:
-                        user_space[direntry][d] = []
+                        user_space[direntry][d] = {"users" : [],
+                                                   "summary" : {"files" : 0,
+                                                                "volume" : 0
+                                                                }
+                                                   }
 
                     logger.info("Processing directory: %s %s", direntry, d)
 
                     try:
-                        with db.cursor() as cursor:
+                        with (db.cursor() as cursor):
                             cursor.execute(SPACE_QUERY, (pnfsid,))
                             for row in cursor.fetchall():
-                                user_space[direntry][d].append(
-                                    (int(row[2]), int(row[3]), int(row[1]), int(row[0]))
+                                user_space[direntry][d]["users"].append(
+                                    {"uid" : int(row[2]),
+                                     "gid" : int(row[3]),
+                                     "volume" : int(row[0]),
+                                     "files" : int(row[1])}
                                 )
                     except psycopg2.Error as exc:
                         logger.error(
@@ -279,7 +286,7 @@ def main() -> None:
         cpu_count = multiprocessing.cpu_count()
         manager = Manager()
         space_summary = manager.dict()
-        task_queue = Queue(maxsize=10000)
+        task_queue = Queue(maxsize=1000)
         lock = Lock()
         print_lock = Lock()
 
@@ -326,11 +333,21 @@ def main() -> None:
         for worker in workers:
             worker.join()
 
+        # fill in summaries for each storage group, directory
+        space_summary_dict = dict(space_summary)  # Convert to regular dict for iteration
+        for sg, directory in space_summary_dict.items():
+            # d is directory name, daya is dict with users and summary
+            for d, data in directory.items():
+              total_files = sum(user["files"] for user in data["users"])
+              total_volume = sum(user["volume"] for user in data["users"])
+              space_summary_dict[sg][d]["summary"]["files"] = total_files
+              space_summary_dict[sg][d]["summary"]["volume"] = total_volume
+
         # Save and transfer results
         out_path = Path("/tmp/user_space_by_id_by_directory.json")
         try:
             out_path.write_text(
-                json.dumps(dict(space_summary), indent=4, sort_keys=True),
+                json.dumps(space_summary_dict, indent=4, sort_keys=True),
                 encoding="utf-8"
             )
         except IOError as exc:
