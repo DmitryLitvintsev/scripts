@@ -77,7 +77,7 @@ class TapeApi:
 
     def status(self, request_id):
         #
-        # stage
+        # status
         #
         r = self.session.get(self.url + "/stage/" + request_id,
                              headers=self.headers)
