@@ -13,20 +13,28 @@ urllib3.disable_warnings()
 
 TOKEN_FILE = f"/run/user/{os.getuid()}/bt_u{os.getuid()}"
 
-TOKEN = None
-with open(TOKEN_FILE, "r") as f:
-     TOKEN="".join(f.readlines()).strip("\n")
 
 class TapeApi:
 
     def __init__(self, url):
         self.session = requests.Session()
         self.session.verify = "/etc/grid-security/certificates"
-
-        self.headers = { "accept" : "application/json",
-                         "content-type" : "application/json",
-                         "Authorization" : f"Bearer {TOKEN}" }
         self.url = url
+        self.headers = { "accept" : "application/json",
+                         "content-type" : "application/json" }
+
+        token = None
+        try:
+             with open(TOKEN_FILE, "r") as f:
+                  token = "".join(f.readlines()).strip("\n")
+        except IOError as e:
+             proxy =  f"/tmp/x509up_u{os.getuid()}"
+             if not os.path.exists(proxy):
+                  raise RuntimeError("No token, no proxy. Quitting")
+             self.session.cert = f"/tmp/x509up_u{os.getuid()}"
+             self.session.key = f"/tmp/x509up_u{os.getuid()}"
+        if token:
+             self.headers["Authorization"] =  f"Bearer {token}"
 
 
     def archiveinfo(self, files):
@@ -39,16 +47,16 @@ class TapeApi:
 
         payload = None
         try:
-            r = self.session.post(self.url+"/archiveinfo",
+            r = self.session.post(self.url + "/archiveinfo",
                                   data=json.dumps(data),
                                   headers=self.headers)
             r.raise_for_status()
             payload =  r.json()
         except HTTPError as exc:
-            print(exc)
+            print(exc.message)
 
         if payload:
-            print(json.dumps(payload, indent=4,sort_keys=True))
+            print(json.dumps(payload, indent=4, sort_keys=True))
 
 
     def stage(self, files):
@@ -59,11 +67,10 @@ class TapeApi:
         for f in files:
             paths["files"].append({"diskLifetime" : "P1D",
                                    "path" : f})
-        r = self.session.post(self.url+"/stage",
+        r = self.session.post(self.url + "/stage",
                               data=json.dumps(paths),
                               headers=self.headers)
         r.raise_for_status()
-
         request_id = r.json().get("requestId")
         return request_id
 
@@ -72,11 +79,11 @@ class TapeApi:
         #
         # stage
         #
-        r = self.session.get(self.url+"/stage/"+request_id,
-                              headers=self.headers)
+        r = self.session.get(self.url + "/stage/" + request_id,
+                             headers=self.headers)
 
         r.raise_for_status()
-        print(json.dumps(r.json(), indent=4,sort_keys=True))
+        print(json.dumps(r.json(), indent=4, sort_keys=True))
 
 
     def release(self, request_id, files):
@@ -86,12 +93,12 @@ class TapeApi:
         data = {
             "paths" : files,
         }
-        r = self.session.post(base_url+"/release/"+request_id,
+        r = self.session.post(base_url + "/release/" + request_id,
                               data=json.dumps(data),
                               headers=self.headers)
         r.raise_for_status()
         print(r)
-        #print(json.dumps(r.json(), indent=4,sort_keys=True))
+
 
 def main():
     """
@@ -168,4 +175,7 @@ def main():
          parser.print_help(sys.stderr)
 
 if __name__ == "__main__":
-    main()
+    try:
+        main()
+    except HTTPError as exc:
+        sys.stderr.write(f"{str(exc)}\n")
