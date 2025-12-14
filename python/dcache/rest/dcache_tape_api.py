@@ -53,7 +53,7 @@ class TapeApi:
             r.raise_for_status()
             payload =  r.json()
         except HTTPError as exc:
-            print(exc.message)
+            print(exc)
 
         if payload:
             print(json.dumps(payload, indent=4, sort_keys=True))
