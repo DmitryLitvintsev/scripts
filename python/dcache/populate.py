@@ -88,7 +88,7 @@ class Worker(multiprocessing.Process):
 
 def main():
     queue = multiprocessing.Queue(10000)
-    cpu_count = multiprocessing.cpu_count()
+    cpu_count = multiprocessing.cpu_count() // 2
 
     #
     # start workers
