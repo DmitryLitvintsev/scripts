@@ -32,9 +32,8 @@ BASE_PATH = "/pnfs/fs/usr/ssa_test/CTA/cern/5.11"
 printLock = multiprocessing.Lock()
 
 def write_file(name, file_size):
-    actual_size = int(random.gauss(file_size, 0.05 * file_size))
     with open(name, "wb") as f:
-        f.write(os.urandom(actual_size))
+        f.write(os.urandom(file_size))
 
 
 def print_error(text):
@@ -102,14 +101,15 @@ def main():
     total_size = 0
     count = 0
     while total_size < LIMIT:
-        total_size += FILE_SIZE
+        file_size = int(random.gauss(FILE_SIZE, 0.05 * FILE_SIZE))
+        total_size += file_size
         number = random.randrange(100)
         name = "%s/%d/%s.data" % (BASE_PATH, number, str(uuid.uuid4()))
         dir = os.path.dirname(name)
         if not os.path.exists(dir):
             os.mkdir(dir)
         count += 1
-        queue.put((name, FILE_SIZE))
+        queue.put((name, file_size))
 
     for i in range(cpu_count):
         queue.put(None)
