@@ -15,17 +15,26 @@ import stat
 
 printLock = multiprocessing.Lock()
 
+
+LIMIT = 8000000000000 # how much data to wrote
+
+MB = 1<<20
+# FILE_SIZE = 50*MB (used for SFA)
+FILE_SIZE = 2000*MB
+
+# target directory:
+
 BASE_PATH = "/pnfs/fs/usr/ssa_test/CTA/small"
 BASE_PATH = "/pnfs/fs/usr/ssa_test/CTA/large"
 BASE_PATH = "/pnfs/fs/usr/ssa_test/CTA/cern/5.11"
 
-MB = 1<<20
 
 printLock = multiprocessing.Lock()
 
 def write_file(name, file_size):
+    actual_size = int(random.gauss(file_size, 0.05 * file_size))
     with open(name, "wb") as f:
-        f.write(os.urandom(file_size))
+        f.write(os.urandom(actual_size))
 
 
 def print_error(text):
@@ -90,21 +99,17 @@ def main():
         workers.append(worker)
         worker.start()
 
-    LIMIT = 8000000000000
-    file_size = 50*MB
-    file_size = 2000*MB
-
     total_size = 0
     count = 0
     while total_size < LIMIT:
-        total_size += file_size
+        total_size += FILE_SIZE
         number = random.randrange(100)
         name = "%s/%d/%s.data" % (BASE_PATH, number, str(uuid.uuid4()))
         dir = os.path.dirname(name)
         if not os.path.exists(dir):
-            os.mkdir(dir) 
+            os.mkdir(dir)
         count += 1
-        queue.put((name, file_size))
+        queue.put((name, FILE_SIZE))
 
     for i in range(cpu_count):
         queue.put(None)

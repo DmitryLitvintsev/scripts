@@ -87,7 +87,7 @@ def kinit() -> None:
     """Create Kerberos ticket for admin shell access."""
     cmd = f"/usr/bin/kinit -k host/{HOSTNAME}"
     if execute_command(cmd) != 0:
-        logger.error("Failed to initialize Kerberos ticket")
+        logger.error(f"Failed to initialize Kerberos ticket {cmd}")
         sys.exit(1)
 
 
@@ -503,7 +503,6 @@ class Worker(Process):
 
             for pnfsid, storage_class in iter(self.queue.get, None):
                 self._process_file(ssh, cta_db, chimera_db, pnfsid, storage_class)
-
         except Exception as exc:
             logger.error("Worker failed: %s", exc)
         finally:
@@ -536,6 +535,7 @@ class Worker(Process):
         # to avoid messing with files that are stored in CTA
         # but are still in 'st ls' queue waiting for CTA notification
         # plus some multiple copy files may take really long time to complete
+
         rows = select(
             cta_db,
             "select disk_instance_name, "
@@ -631,10 +631,22 @@ def main() -> None:
         help="Enable verbose logging"
     )
 
+    parser.add_argument(
+        "-f", "--file",
+        nargs='+',
+        help='space separated pnfsids',
+        required=False,
+        metavar="FILE"
+    )
+
     args = parser.parse_args()
 
     if args.verbose:
         logger.setLevel(logging.DEBUG)
+
+    pnfsid_set = set()
+    if args.file:
+        pnfsid_set = set(args.file)
 
     # Load configuration
     try:
@@ -697,8 +709,11 @@ def main() -> None:
             pnfsid = parts[-2]
             if PNFSID_PATTERN.match(pnfsid):
                 storage_class = parts[-1].strip("'")
-                pnfsids.append((pnfsid, storage_class))
-
+                if pnfsid_set:
+                    if pnfsid in pnfsid_set:
+                        pnfsids.append((pnfsid, storage_class))
+                else:
+                    pnfsids.append((pnfsid, storage_class))
         logger.info("Found %d stores to process", len(pnfsids))
         ssh.close()
 
