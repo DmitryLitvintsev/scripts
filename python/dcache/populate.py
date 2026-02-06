@@ -14,6 +14,7 @@ import uuid
 import stat
 
 printLock = multiprocessing.Lock()
+STOPPER="/tmp/STOP"
 
 
 LIMIT = 8000000000000 # how much data to wrote
@@ -78,6 +79,9 @@ class Worker(multiprocessing.Process):
     def run(self):
         counter = 0
         for name, size in iter(self.queue.get, None):
+            if os.path.exists(STOPPER):
+                print_error(f"Found {STOPPER} file. Exiting...")
+                break
             write_file(name, size)
             counter += 1
             if not counter % 1000 :
@@ -86,6 +90,10 @@ class Worker(multiprocessing.Process):
 
 
 def main():
+
+    if os.path.exists(STOPPER):
+        os.unlink(STOPPER)
+
     queue = multiprocessing.Queue(10000)
     cpu_count = multiprocessing.cpu_count() // 2
 
@@ -101,6 +109,9 @@ def main():
     total_size = 0
     count = 0
     while total_size < LIMIT:
+        if os.path.exists(STOPPER):
+            print_error(f"Found {STOPPER} file. Exiting...")
+            break
         file_size = int(random.gauss(FILE_SIZE, 0.05 * FILE_SIZE))
         total_size += file_size
         number = random.randrange(100)
