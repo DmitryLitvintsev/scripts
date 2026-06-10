@@ -541,24 +541,16 @@ class Worker(Process):
             "select disk_instance_name, "
             "'cta://cta/'||disk_file_id||'?archiveid='||archive_file_id as location "
             "from archive_file where disk_file_id = %s and creation_time < %s",
-            (pnfsid, int(time.time()) - 12 * 3600)
+            (pnfsid, int(time.time()) - 6 * 3600)
         )
 
         if not rows:
+            logger.info(f"{pnfsid} is not known to CTA, Skipping...")
             return
 
         disk_instance_name = rows[0]["disk_instance_name"]
         location = rows[0]["location"]
         storage_group, file_family = storage_class.split(".")
-
-        logger.info(
-            "%s %s %s %s %s",
-            pnfsid,
-            disk_instance_name,
-            location,
-            storage_group,
-            file_family
-            )
 
         result = select(
             chimera_db,
@@ -609,6 +601,7 @@ class Worker(Process):
             ssh,
             f"\\sl {pnfsid} st kill {pnfsid}"
         )
+        logger.info(f"Processed {pnfsid}")
 
 
 def main() -> None:
@@ -714,6 +707,7 @@ def main() -> None:
                         pnfsids.append((pnfsid, storage_class))
                 else:
                     pnfsids.append((pnfsid, storage_class))
+
         logger.info("Found %d stores to process", len(pnfsids))
         ssh.close()
 
