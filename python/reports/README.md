@@ -74,7 +74,7 @@ options:
 
 ```
 
-To get correct dates on SCD API this repoprt has to be run at end of the week (or during the week) as it takes start / end of the currenrt week as parameters to SCD reports
+To get correct dates on SCD API this script has to be run at end of the week (or during the week) as it takes start / end of the currenrt week as parameters to SCD reports
 API.
 
 
