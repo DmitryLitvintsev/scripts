@@ -28,7 +28,7 @@ Period: 2026-06-22 → 2026-06-26
 Report written to report.md
 ```
 
-The script uses access tokens that have to be placesd in file `access_tokens.yaml` in
+The script uses access tokens that have to be placed in the file `access_tokens.yaml` in
 dorectory `${HOME}/.config/scd-reporting/` The file has to be protected like so:
 
 ```
@@ -74,7 +74,7 @@ options:
 
 ```
 
-To get correct dates on SCD API this repoprt has to be run at end of the week (or during the week) as it takes start / end of the currenrt week as parameters top SCD reports
+To get correct dates on SCD API this repoprt has to be run at end of the week (or during the week) as it takes start / end of the currenrt week as parameters to SCD reports
 API.
 
 
