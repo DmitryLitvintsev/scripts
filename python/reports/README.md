@@ -29,7 +29,7 @@ Report written to report.md
 ```
 
 The script uses access tokens that have to be placed in the file `access_tokens.yaml` in
-dorectory `${HOME}/.config/scd-reporting/` The file has to be protected like so:
+directory `${HOME}/.config/scd-reporting/` The file has to be protected like so:
 
 ```
 chmod 0600 ${HOME}/.config/scd-reporting/access_tokens.yaml
