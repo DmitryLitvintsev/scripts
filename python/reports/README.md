@@ -79,4 +79,5 @@ API.
 
 
 The software is licensed under [The GNU Affero General Public License](https://www.gnu.org/licenses/agpl-3.0.ca.html)
+
 &copy 2026 Dmitry Litvintsev
