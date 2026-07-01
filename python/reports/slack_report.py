@@ -130,7 +130,7 @@ def render_report(
                 all_messages += len(messages)
                 for message in messages:
                     msg = re.sub("```","\n```\n",message)
-                    lines.append(f" - {msg}:\n")
+                    lines.append(f"  - {msg}:\n")
                     total += 1
             lines.append(f"**Messages sent:** {total}\n")
             lines.append("**By channel:**")
