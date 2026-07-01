@@ -49,7 +49,7 @@ remember what token corresponds to what.
 
 You get slack tokens with wide read/search permissions from your slack profile.
 
-## Generatimng SCD Report 
+## Generating SCD Report 
 
 The script `slack_report.py` only sees your messages - so it does not see the whole conversation. I use 
 the generated report as input for Claude to generate final report for SCD. 
