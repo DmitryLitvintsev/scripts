@@ -59,16 +59,16 @@ You get slack tokens with wide read/search permissions from slack API following 
   - Scroll down to the Scopes section.
   - User Token Scopes
   - add all read permissions:
-   * `channels:history`
-   * `channels:read`
-   * `groups:history`
-   * `groups:read`
-   * `im:history`
-   * `im:read`
-   * `mpim:history`
-   * `mpim:read`
-   * `search:read`
-   * `users:read`
+    * `channels:history`
+    * `channels:read`
+    * `groups:history`
+    * `groups:read`
+    * `im:history`
+    * `im:read`
+    * `mpim:history`
+    * `mpim:read`
+    * `search:read`
+    * `users:read`
 
 - Install the App and  Retrieve the Token (download)
 
