@@ -354,7 +354,7 @@ def main() -> None:
 
     if args.output:
         Path(args.output).write_text(report, encoding="utf-8")
-        print(f"Report written to {args.output}", file=sys.stderr)
+        print(f"\nReport written to {args.output}", file=sys.stderr)
     else:
         print(report)
 
