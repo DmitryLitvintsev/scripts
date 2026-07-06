@@ -80,22 +80,53 @@ def fetch_slack_new(token: str, start: datetime, end: datetime) -> dict:
 
 
     channels_url = "https://slack.com/api/conversations.list"
-    params = {"types": "public_channel", "limit": 200}
-    channels_response = requests.get(channels_url, headers=headers, params=params).json()
+    channels = []
+    cursor = None
+    print("Fetching full channel and DM list (this may take a moment)...", file=sys.stderr)
+    
+    while True:
+        channels_url = "https://slack.com/api/conversations.list"
+        params = {
+            "types": "public_channel,im,mpim,private_channel", 
+            "limit": 200
+        }
+        if cursor:
+            params["cursor"] = cursor
+            
+        channels_response = requests.get(channels_url, headers=headers, params=params).json()
+        
+        if not channels_response.get("ok"):
+            logger.error(f"Failed to fetch channels: {channels_response.get('error')}")
+            return
 
-    if not channels_response.get("ok"):
-        print(f"Failed to fetch channels: {channels_response.get('error')}", file=sys.stderr)
-        return
+        channels.extend(channels_response.get("channels", []))
+        
+        # Check if there are more pages of channels/DMs to pull
+        cursor = channels_response.get("response_metadata", {}).get("next_cursor")
+        if not cursor:
+            break
+        time.sleep(0.2) # Avoid hitting rate limits during discovery
 
-    channels = channels_response["channels"]
+    print(f"Total conversation spaces found: {len(channels)}", file=sys.stderr)
 
     for channel in channels:
         if channel.get("is_archived"):
             continue
             
         channel_id = channel["id"]
-        channel_name = channel["name"]
-        print(f"Scanning channel: #{channel_name}", file=sys.stderr)
+        #channel_name = channel["name"]
+
+        # Format a friendly display name depending on what type of conversation it is
+        if channel.get("is_im"):
+        # It's a 1:1 DM. The target person's ID is stored in the 'user' field of the channel object
+            channel_name = f"DM with User: {channel.get('user')}"
+        elif channel.get("is_mpim"):
+            channel_name = f"Group DM ({channel.get('name')})"
+        else:
+            channel_name = f"#{channel.get('name')}"
+            
+        
+        print(f"Scanning channel: {channel_name}", file=sys.stderr)
 
         cursor = None
         page = 1
@@ -113,7 +144,6 @@ def fetch_slack_new(token: str, start: datetime, end: datetime) -> dict:
             history_response = requests.get(history_url,
                                             headers=headers,
                                             params=history_params).json()
-            r.raise_for_status()
             messages = history_response.get("messages", [])
             for msg in messages:
                 if msg.get("user") == user_id:
@@ -132,7 +162,7 @@ def fetch_slack_new(token: str, start: datetime, end: datetime) -> dict:
 
 
 
-def fetch_slack(token: str, start: datetime, end: datetime) -> dict:
+def fetch_slack(token: str, start: datetime, end: datetime, summary) -> dict:
     headers = {"Authorization": f"Bearer {token}"}
 
     r = requests.post("https://slack.com/api/auth.test", headers=headers, timeout=30)
