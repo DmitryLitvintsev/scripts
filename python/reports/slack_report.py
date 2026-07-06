@@ -173,18 +173,18 @@ def main() -> None:
         if tokens_path.stat().st_mode != 33152 :
             logger.error(
                 "Tokens file %s permissions too permissive, should be 0600",
-                TOKENS_FILE
+                TOKEN_FILE
             )
             sys.exit(1)
 
         tokens = yaml.safe_load(tokens_path.read_text())
         if not tokens:
-            logger.error("Failed to load tokensuration from %s", TOKENS_FILE)
+            logger.error("Failed to load tokensuration from %s", TOKEN_FILE)
             sys.exit(1)
 
     except (OSError, IOError) as exc:
         if isinstance(exc, FileNotFoundError):
-            logger.error("Tokens file %s does not exist", TOKENS_FILE)
+            logger.error("Tokens file %s does not exist", TOKEN_FILE)
         else:
             logger.error("Error reading tokens file: %s", exc)
         sys.exit(1)
@@ -198,7 +198,7 @@ def main() -> None:
     slacks = tokens.get("slack")
 
     if not slacks:
-        logger.error("Did not find slack tokens in ${TOKENS_FILE}")
+        logger.error("Did not find slack tokens in ${TOKEN_FILE}")
         sys.exit(1)
 
     messages_by_team = {}
