@@ -41,7 +41,7 @@ TOKEN_FILE = os.path.join(home, ".config/scd-reporting/access_tokens.yaml")
 # ── Date range ────────────────────────────────────────────────────────────────
 
 def get_date_range(mode: str = "last_week", days: int = 7) -> tuple[datetime, datetime]:
-    now = datetime.now(timezone.utc)
+    now = datetime.now()
     if mode == "last_week":
         monday = now - timedelta(days=now.weekday() + 7)
         start = monday.replace(hour=0, minute=0, second=0, microsecond=0)
@@ -59,6 +59,79 @@ def get_date_range(mode: str = "last_week", days: int = 7) -> tuple[datetime, da
 
 # ── Slack ─────────────────────────────────────────────────────────────────────
 
+def fetch_slack_new(token: str, start: datetime, end: datetime) -> dict:
+    headers = {"Authorization": f"Bearer {token}"}
+
+    r = requests.post("https://slack.com/api/auth.test", headers=headers, timeout=30)
+    r.raise_for_status()
+    auth = r.json()
+    if not auth.get("ok"):
+        raise RuntimeError(f"Slack auth failed: {auth.get('error')}")
+    user_id = auth["user_id"]
+    team = auth["team"]
+    user = auth["user"]
+
+
+    start_str = str(time.mktime(start.timetuple()))
+    end_str = str(time.mktime(end.timetuple()))
+    
+    messages_by_team = {}
+    messages_by_team[team] = {}
+
+
+    channels_url = "https://slack.com/api/conversations.list"
+    params = {"types": "public_channel", "limit": 200}
+    channels_response = requests.get(channels_url, headers=headers, params=params).json()
+
+    if not channels_response.get("ok"):
+        print(f"Failed to fetch channels: {channels_response.get('error')}", file=sys.stderr)
+        return
+
+    channels = channels_response["channels"]
+
+    for channel in channels:
+        if channel.get("is_archived"):
+            continue
+            
+        channel_id = channel["id"]
+        channel_name = channel["name"]
+        print(f"Scanning channel: #{channel_name}", file=sys.stderr)
+
+        cursor = None
+        page = 1
+
+        while True:
+            history_url = "https://slack.com/api/conversations.history"
+            history_params = {
+                "channel": channel_id, 
+                "limit": 100,
+                "oldest": start_str,  # Start point
+                "latest": end_str   # End point
+            }
+            if cursor:
+                  history_params["cursor"] = cursor
+            history_response = requests.get(history_url,
+                                            headers=headers,
+                                            params=history_params).json()
+            r.raise_for_status()
+            messages = history_response.get("messages", [])
+            for msg in messages:
+                if msg.get("user") == user_id:
+                    readable_ts = datetime.fromtimestamp(float(msg.get("ts"))).strftime('%Y-%m-%d %H:%M:%S')
+                    if channel_name not in messages_by_team[team]:
+                        messages_by_team[team][channel_name] = []
+                    messages_by_team[team][channel_name].append(msg["text"])
+            metadata = history_response.get("response_metadata", {})
+            cursor = metadata.get("next_cursor")
+            if not cursor:
+                break
+                
+            page += 1
+
+    return  messages_by_team
+
+
+
 def fetch_slack(token: str, start: datetime, end: datetime) -> dict:
     headers = {"Authorization": f"Bearer {token}"}
 
@@ -72,7 +145,7 @@ def fetch_slack(token: str, start: datetime, end: datetime) -> dict:
     user = auth["user"]
 
     #print(f"Report for {team} team")
-
+    
     # List all conversations the user is a member of
 
     start_str = start.strftime("%Y-%m-%d")
@@ -85,7 +158,7 @@ def fetch_slack(token: str, start: datetime, end: datetime) -> dict:
         params: dict = { "query": f"from:@{user} after:{start_str} before:{end_str}",
                          "sort": "timestamp",
                          "sort_dir": "asc",
-                         "limit": 10000,
+                         "limit": 10,
                          }
         if cursor:
             params["cursor"] = cursor
@@ -130,8 +203,8 @@ def render_report(
                 all_messages += len(messages)
                 for message in messages:
                     msg = re.sub("```","\n```\n",message)
-                    lines.append(f"  - {msg}:\n")
-                    total += 1
+                    lines.append(f" - {msg}:\n")
+                    total += 1 
             lines.append(f"**Messages sent:** {total}\n")
             lines.append("**By channel:**")
             for ch, count in sorted(by_channel.items(), key=lambda x: x[1], reverse=True):
@@ -150,13 +223,13 @@ def render_report(
 # ── Main ──────────────────────────────────────────────────────────────────────
 
 def main() -> None:
-    #parser = argparse.ArgumentParser(description="Generate a weekly activity report from GitHub, GitLab, Slack, and Outlook.")
-    parser = argparse.ArgumentParser(description="Generate a weekly activity report from Slack messages")
+    parser = argparse.ArgumentParser(description="Generate a weekly activity report from GitHub, GitLab, Slack, and Outlook.")
     grp = parser.add_mutually_exclusive_group()
     grp.add_argument("--last-week", action="store_true", default=True, help="Last Mon–Sun (default)")
     grp.add_argument("--this-week", action="store_true", help="Current week so far")
     grp.add_argument("--days", type=int, metavar="N", help="Rolling last N days")
     parser.add_argument("--output", "-o", metavar="FILE", help="Write report to FILE instead of stdout")
+    parser.add_argument("--auth-outlook", action="store_true", help="Run MSAL device-code flow for Outlook token")
     args = parser.parse_args()
 
     if args.days:
@@ -173,18 +246,18 @@ def main() -> None:
         if tokens_path.stat().st_mode != 33152 :
             logger.error(
                 "Tokens file %s permissions too permissive, should be 0600",
-                TOKEN_FILE
+                TOKENS_FILE
             )
             sys.exit(1)
 
         tokens = yaml.safe_load(tokens_path.read_text())
         if not tokens:
-            logger.error("Failed to load tokensuration from %s", TOKEN_FILE)
+            logger.error("Failed to load tokensuration from %s", TOKENS_FILE)
             sys.exit(1)
 
     except (OSError, IOError) as exc:
         if isinstance(exc, FileNotFoundError):
-            logger.error("Tokens file %s does not exist", TOKEN_FILE)
+            logger.error("Tokens file %s does not exist", TOKENS_FILE)
         else:
             logger.error("Error reading tokens file: %s", exc)
         sys.exit(1)
@@ -198,13 +271,13 @@ def main() -> None:
     slacks = tokens.get("slack")
 
     if not slacks:
-        logger.error("Did not find slack tokens in ${TOKEN_FILE}")
+        logger.error("Did not find slack tokens in ${TOKENS_FILE}")
         sys.exit(1)
 
     messages_by_team = {}
     for tok in slacks.values():
         #print("Fetching Slack …", file=sys.stderr)
-        slack_data = fetch_slack(tok, start, end)
+        slack_data = fetch_slack_new(tok, start, end)
         messages_by_team.update(slack_data)
 
     report = render_report(start, end, messages_by_team)
