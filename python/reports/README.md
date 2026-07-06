@@ -49,6 +49,14 @@ remember what token corresponds to what.
 
 You get slack tokens with wide read/search permissions from your slack profile.
 
+## Generating SCD Report 
+
+The script `slack_report.py` only sees your messages - so it does not see the whole conversation. I use 
+the generated report as input for Claude to generate final report for SCD. 
+
+With that in mind I try to actually write my messages in slack so that claude will have easier 
+time reconstructing the whole conversation to make a more meaningful summary.
+
 ## Post to scd reporting
 
 `post_report.py` can be used to post the report in md format to scd reporting API
@@ -74,7 +82,7 @@ options:
 
 ```
 
-To get correct dates on SCD API this script has to be run at end of the week (or during the week) as it takes start / end of the currenrt week as parameters to SCD reports
+To get correct dates in SCD API this script has to be run at end of the week (or during the week) as it takes start / end of the current week as parameters to SCD reports
 API.
 
 
