@@ -47,14 +47,38 @@ The `slack` key is mandatory and should be called `slack`. The keys correspondin
 to slack access tokens are arbitrary strings for better organization. So one can
 remember what token corresponds to what.
 
-You get slack tokens with wide read/search permissions from your slack profile.
+You get slack tokens with wide read/search permissions from slack API following these instructions:
 
-## Generating SCD Report 
+- Navigate to the [Slack API Apps Page](https://api.slack.com/apps).
+- Click the Create New App button.
+- Select *From scratch*.
+- Enter an App Name and select the Slack Workspace where you want to use it.
+- Click Create App
+- Configure Scopes (Permissions):
+  - On the left sidebar menu, look under Features and select _OAuth & Permissions_
+  - Scroll down to the Scopes section.
+  - User Token Scopes
+  - add all read permissions:
+   * `channels:history`
+   * `channels:read`
+   * `groups:history`
+   * `groups:read`
+   * `im:history`
+   * `im:read`
+   * `mpim:history`
+   * `mpim:read`
+   * `search:read`
+   * `users:read`
 
-The script `slack_report.py` only sees your messages - so it does not see the whole conversation. I use 
-the generated report as input for Claude to generate final report for SCD. 
+- Install the App and  Retrieve the Token (download)
 
-With that in mind I try to actually write my messages in slack so that claude will have easier 
+
+## Generating SCD Report
+
+The script `slack_report.py` only sees your messages - so it does not see the whole conversation. I use
+the generated report as input for Claude to generate final report for SCD.
+
+With that in mind I try to actually write my messages in slack so that claude will have easier
 time reconstructing the whole conversation to make a more meaningful summary.
 
 ## Post to scd reporting

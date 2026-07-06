@@ -57,6 +57,44 @@ def get_date_range(mode: str = "last_week", days: int = 7) -> tuple[datetime, da
 
 # ── Slack ─────────────────────────────────────────────────────────────────────
 
+def safe_api_request(url, headers, params, max_retries=5):
+    """Wraps requests to handle rate limits and structural API stutter gracefully."""
+    backoff = 2
+    for attempt in range(max_retries):
+        try:
+            response = requests.get(url, headers=headers, params=params)
+            
+            # If Slack explicitly tells us we are rate limited
+            if response.status_code == 429:
+                retry_after = int(response.headers.get("Retry-After", backoff))
+                print(f"  [Rate Limited] Slack requested backoff. Sleeping for {retry_after}s...")
+                time.sleep(retry_after)
+                continue
+                
+            data = response.json()
+            
+            # If the API layer returned an error
+            if not data.get("ok"):
+                error_msg = data.get("error")
+                if error_msg == "ratelimited":
+                    print(f"  [Rate Limited API] Sleeping for {backoff}s and retrying...")
+                    time.sleep(backoff)
+                    backoff *= 2
+                    continue
+                else:
+                    print(f"  API Error: {error_msg}")
+                    return None
+                    
+            return data
+            
+        except requests.exceptions.RequestException as e:
+            print(f"  Network error: {e}. Retrying in {backoff}s...")
+            time.sleep(backoff)
+            backoff *= 2
+            
+    return None
+
+
 def fetch_user_cache(token: str):
     """Fetches all workspace users and returns a dict mapping ID to Real Name."""
     print("Building workspace user cache...", file=sys.stderr)
@@ -121,9 +159,13 @@ def fetch_slack_new(token: str, start: datetime, end: datetime) -> dict:
     print("Fetching full channel and DM list (this may take a moment)...", file=sys.stderr)
     
     while True:
-        channels_url = "https://slack.com/api/conversations.list"
+        #channels_url = "https://slack.com/api/conversations.list"
+        # this API seems to contain only channels the user is member of:
+        channels_url = "https://slack.com/api/users.conversations"
+                         
         params = {
-            "types": "public_channel,im,mpim,private_channel", 
+            "types": "public_channel,im,mpim,private_channel",
+            "exclude_archived" : True,
             "limit": 200
         }
         if cursor:
@@ -143,7 +185,7 @@ def fetch_slack_new(token: str, start: datetime, end: datetime) -> dict:
             break
         time.sleep(0.2) # Avoid hitting rate limits during discovery
 
-    print(f"Total conversation found in {team}: {len(channels)}", file=sys.stderr)
+    print(f"Total number of conversations found in {team}: {len(channels)}", file=sys.stderr)
 
     counter = 0
     number_of_channels = len(channels)
@@ -187,9 +229,14 @@ def fetch_slack_new(token: str, start: datetime, end: datetime) -> dict:
             }
             if cursor:
                   history_params["cursor"] = cursor
-            history_response = requests.get(history_url,
-                                            headers=headers,
-                                            params=history_params).json()
+#            history_response = requests.get(history_url,
+#                                            headers=headers,
+#                                            params=history_params).json()
+            history_response = safe_api_request(history_url, headers, history_params)
+            if not  history_response:
+                logger.error(f"Failed to query history {team} {channel_name}")
+                break
+
             messages = history_response.get("messages", [])
             for msg in messages:
                 if msg.get("user") == user_id:
@@ -201,9 +248,9 @@ def fetch_slack_new(token: str, start: datetime, end: datetime) -> dict:
             cursor = metadata.get("next_cursor")
             if not cursor:
                 break
-            time.sleep(0.2)            
+            #time.sleep(0.2)            
             page += 1
-        time.sleep(0.3)
+        #time.sleep(0.3)
     print("\n", file=sys.stderr)
     return  messages_by_team
 
