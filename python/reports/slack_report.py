@@ -55,12 +55,49 @@ def get_date_range(mode: str = "last_week", days: int = 7) -> tuple[datetime, da
         end = now
     return start, end
 
-
-
 # ── Slack ─────────────────────────────────────────────────────────────────────
 
+def fetch_user_cache(token: str):
+    """Fetches all workspace users and returns a dict mapping ID to Real Name."""
+    print("Building workspace user cache...", file=sys.stderr)
+    user_cache = {}
+    cursor = None
+    headers = {"Authorization": f"Bearer {token}",
+               "Content-Type": "application/json; charset=utf-8"}
+    
+    
+    while True:
+        url = "https://slack.com/api/users.list"
+        params = {"limit": 200}
+        if cursor:
+            params["cursor"] = cursor
+            
+        res = requests.get(url, headers=headers, params=params).json()
+        if not res.get("ok"):
+            print(f"Warning: Could not fetch user names ({res.get('error')})")
+            return {}
+
+        for member in res.get("members", []):
+            user_id = member["id"]
+            # Fallback chain: Real Name -> Display Name -> Username
+            real_name = member.get("real_name") or member.get("profile", {}).get("display_name") or member.get("name")
+            user_cache[user_id] = real_name
+
+        cursor = res.get("response_metadata", {}).get("next_cursor")
+        if not cursor:
+            break
+        time.sleep(0.2)
+
+    print(f"Cached {len(user_cache)} users.", file=sys.stderr)
+    return user_cache
+        
+
 def fetch_slack_new(token: str, start: datetime, end: datetime) -> dict:
-    headers = {"Authorization": f"Bearer {token}"}
+
+    user_cache = fetch_user_cache(token)
+    
+    headers = {"Authorization": f"Bearer {token}",
+               "Content-Type": "application/json; charset=utf-8"}
 
     r = requests.post("https://slack.com/api/auth.test", headers=headers, timeout=30)
     r.raise_for_status()
@@ -70,7 +107,6 @@ def fetch_slack_new(token: str, start: datetime, end: datetime) -> dict:
     user_id = auth["user_id"]
     team = auth["team"]
     user = auth["user"]
-
 
     start_str = str(time.mktime(start.timetuple()))
     end_str = str(time.mktime(end.timetuple()))
@@ -109,7 +145,11 @@ def fetch_slack_new(token: str, start: datetime, end: datetime) -> dict:
 
     print(f"Total conversation spaces found: {len(channels)}", file=sys.stderr)
 
+    counter = 0
+    number_of_channels = len(channels)
+
     for channel in channels:
+        counter += 1 
         if channel.get("is_archived"):
             continue
             
@@ -119,14 +159,14 @@ def fetch_slack_new(token: str, start: datetime, end: datetime) -> dict:
         # Format a friendly display name depending on what type of conversation it is
         if channel.get("is_im"):
         # It's a 1:1 DM. The target person's ID is stored in the 'user' field of the channel object
-            channel_name = f"DM with User: {channel.get('user')}"
+            #channel_name = f"DM with User: {channel.get('user')}"
+            channel_name = f"DM with User: {user_cache.get(channel.get('user'))}"
         elif channel.get("is_mpim"):
             channel_name = f"Group DM ({channel.get('name')})"
         else:
             channel_name = f"#{channel.get('name')}"
-            
         
-        print(f"Scanning channel: {channel_name}", file=sys.stderr)
+        print(f"\rScanning channels in {team}: {counter: >6}/{number_of_channels}",  end="", flush=True, file=sys.stderr)
 
         cursor = None
         page = 1
@@ -161,9 +201,9 @@ def fetch_slack_new(token: str, start: datetime, end: datetime) -> dict:
     return  messages_by_team
 
 
-
 def fetch_slack(token: str, start: datetime, end: datetime, summary) -> dict:
-    headers = {"Authorization": f"Bearer {token}"}
+    headers = {"Authorization": f"Bearer {token}",
+               "Content-Type": "application/json; charset=utf-8"}
 
     r = requests.post("https://slack.com/api/auth.test", headers=headers, timeout=30)
     r.raise_for_status()
@@ -228,7 +268,7 @@ def render_report(
             total = 0
             lines.append(f"## {team}\n")
             for channel, messages in channels.items():
-                lines.append(f"### In {channel} channel:\n")
+                lines.append(f"### In {channel}:\n")
                 by_channel[channel] = len(messages)
                 all_messages += len(messages)
                 for message in messages:
@@ -238,7 +278,7 @@ def render_report(
             lines.append(f"**Messages sent:** {total}\n")
             lines.append("**By channel:**")
             for ch, count in sorted(by_channel.items(), key=lambda x: x[1], reverse=True):
-                lines.append(f"- `#{ch}`: {count} message{'s' if count != 1 else ''}")
+                lines.append(f"- `{ch}`: {count} message{'s' if count != 1 else ''}")
             lines.append("")
 
     # Summary table
