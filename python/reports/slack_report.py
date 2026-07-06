@@ -75,7 +75,7 @@ def fetch_user_cache(token: str):
         res = requests.get(url, headers=headers, params=params).json()
         if not res.get("ok"):
             print(f"Warning: Could not fetch user names ({res.get('error')})")
-            return {}
+            return user_cache
 
         for member in res.get("members", []):
             user_id = member["id"]
@@ -143,7 +143,7 @@ def fetch_slack_new(token: str, start: datetime, end: datetime) -> dict:
             break
         time.sleep(0.2) # Avoid hitting rate limits during discovery
 
-    print(f"Total conversation spaces found: {len(channels)}", file=sys.stderr)
+    print(f"Total conversation found in {team}: {len(channels)}", file=sys.stderr)
 
     counter = 0
     number_of_channels = len(channels)
@@ -160,14 +160,20 @@ def fetch_slack_new(token: str, start: datetime, end: datetime) -> dict:
         if channel.get("is_im"):
         # It's a 1:1 DM. The target person's ID is stored in the 'user' field of the channel object
             #channel_name = f"DM with User: {channel.get('user')}"
-            channel_name = f"DM with User: {user_cache.get(channel.get('user'))}"
+            username = None
+            if user_cache:
+                username = user_cache.get(channel.get('user'), channel.get('user'))
+            else:
+                username = channel.get('user')
+            channel_name = f"DM with User: {username}"
         elif channel.get("is_mpim"):
             channel_name = f"Group DM ({channel.get('name')})"
         else:
             channel_name = f"#{channel.get('name')}"
         
-        print(f"\rScanning channels in {team}: {counter: >6}/{number_of_channels}",  end="", flush=True, file=sys.stderr)
-
+        print(f"\rScanning channels in {team}: {counter: >6}/{number_of_channels}",
+              end="", flush=True, file=sys.stderr)
+        
         cursor = None
         page = 1
 
@@ -195,9 +201,10 @@ def fetch_slack_new(token: str, start: datetime, end: datetime) -> dict:
             cursor = metadata.get("next_cursor")
             if not cursor:
                 break
-                
+            time.sleep(0.2)            
             page += 1
-
+        time.sleep(0.3)
+    print("\n", file=sys.stderr)
     return  messages_by_team
 
 
@@ -228,7 +235,7 @@ def fetch_slack(token: str, start: datetime, end: datetime, summary) -> dict:
         params: dict = { "query": f"from:@{user} after:{start_str} before:{end_str}",
                          "sort": "timestamp",
                          "sort_dir": "asc",
-                         "limit": 10,
+                         "limit": 100,
                          }
         if cursor:
             params["cursor"] = cursor
@@ -293,13 +300,13 @@ def render_report(
 # ── Main ──────────────────────────────────────────────────────────────────────
 
 def main() -> None:
-    parser = argparse.ArgumentParser(description="Generate a weekly activity report from GitHub, GitLab, Slack, and Outlook.")
+    parser = argparse.ArgumentParser(description="Generate a weekly activity report from Slack")
     grp = parser.add_mutually_exclusive_group()
     grp.add_argument("--last-week", action="store_true", default=True, help="Last Mon–Sun (default)")
     grp.add_argument("--this-week", action="store_true", help="Current week so far")
     grp.add_argument("--days", type=int, metavar="N", help="Rolling last N days")
     parser.add_argument("--output", "-o", metavar="FILE", help="Write report to FILE instead of stdout")
-    parser.add_argument("--auth-outlook", action="store_true", help="Run MSAL device-code flow for Outlook token")
+    #parser.add_argument("--auth-outlook", action="store_true", help="Run MSAL device-code flow for Outlook token")
     args = parser.parse_args()
 
     if args.days:
@@ -354,7 +361,7 @@ def main() -> None:
 
     if args.output:
         Path(args.output).write_text(report, encoding="utf-8")
-        print(f"\nReport written to {args.output}", file=sys.stderr)
+        print(f"Report written to {args.output}", file=sys.stderr)
     else:
         print(report)
 
