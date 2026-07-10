@@ -255,7 +255,7 @@ def fetch_slack_new(token: str, start: datetime, end: datetime) -> dict:
     return  messages_by_team
 
 
-def fetch_slack(token: str, start: datetime, end: datetime, summary) -> dict:
+def fetch_slack(token: str, start: datetime, end: datetime) -> dict:
     headers = {"Authorization": f"Bearer {token}",
                "Content-Type": "application/json; charset=utf-8"}
 
@@ -267,6 +267,8 @@ def fetch_slack(token: str, start: datetime, end: datetime, summary) -> dict:
     user_id = auth["user_id"]
     team = auth["team"]
     user = auth["user"]
+
+    user_cache = fetch_user_cache(token)
 
     #print(f"Report for {team} team")
     
@@ -286,15 +288,30 @@ def fetch_slack(token: str, start: datetime, end: datetime, summary) -> dict:
                          }
         if cursor:
             params["cursor"] = cursor
-        r = requests.get("https://slack.com/api/search.messages", headers=headers, params=params, timeout=30)
-        r.raise_for_status()
-        data = r.json()
+        #r = requests.get("https://slack.com/api/search.messages", headers=headers, params=params, timeout=30)
+        #r.raise_for_status()
+        #data = r.json()
+        data = safe_api_request("https://slack.com/api/search.messages", headers, params)
         if data.get("ok"):
             messages = data["messages"]["matches"]
             for msg in messages:
                 channel = msg.get("channel")
                 if channel:
-                    channel_name = channel.get("name")
+                    # Format a friendly display name depending on what type of conversation it is
+                    if channel.get("is_im"):
+                        # It's a 1:1 DM. The target person's ID is stored in the 'user' field of the channel object
+                        #channel_name = f"DM with User: {channel.get('user')}"
+                        username = None
+                        if user_cache:
+                            username = user_cache.get(channel.get('user'), channel.get('user'))
+                        else:
+                            username = channel.get('user')
+                        channel_name = f"DM with User: {username}"
+                    elif channel.get("is_mpim"):
+                        channel_name = f"Group DM ({channel.get('name')})"
+                    else:
+                        channel_name = f"#{channel.get('name')}"
+                    #channel_name = channel.get("name")
                     if channel_name not in messages_by_team[team]:
                         messages_by_team[team][channel_name] = []
                     messages_by_team[team][channel_name].append(msg["text"])
@@ -325,7 +342,7 @@ def render_report(
                 lines.append(f"### In {channel}:\n")
                 by_channel[channel] = len(messages)
                 all_messages += len(messages)
-                for message in messages:
+                for message in messages[::-1]: # reverse order
                     msg = re.sub("```","\n```\n",message)
                     lines.append(f" - {msg}:\n")
                     total += 1 
@@ -402,6 +419,7 @@ def main() -> None:
     for tok in slacks.values():
         #print("Fetching Slack …", file=sys.stderr)
         slack_data = fetch_slack_new(tok, start, end)
+        #slack_data = fetch_slack(tok, start, end)
         messages_by_team.update(slack_data)
 
     report = render_report(start, end, messages_by_team)
