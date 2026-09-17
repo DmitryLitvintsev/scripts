@@ -31,7 +31,7 @@ if not CONFIG_FILE:
     CONFIG_FILE = "migration.yaml"
 
 
-HOSTNAME = socket.gethostname()
+HOSTNAME = socket.getfqdn()
 SSH_HOST = "fndca"
 SSH_PORT = 24223
 SSH_USER = "enstore"
@@ -179,7 +179,7 @@ def get_volatile_pools(ssh):
         if not i:
             continue
 
-        if i.startswith("v"):
+        if i.startswith("r") or i.startswith("w"):
             pools.append(i)
 
     return pools
@@ -331,7 +331,7 @@ def insert(con, sql, pars):
             except Exception:
                 pass
 
-            
+
 class KinitWorker(multiprocessing.Process):
     def __init__(self):
         super().__init__()
@@ -363,7 +363,7 @@ class Worker(multiprocessing.Process):
 
         for pool in iter(self.queue.get, None):
             print_message(f"Doing pool {pool}")
-            repls = execute_admin_command(ssh, f"\s {pool} rep ls -l=p")
+            repls = execute_admin_command(ssh, f"\s {pool} rep ls -l=p  -storage='*.scratch'")
             if repls:
                 for line in repls:
                     parts = line.strip().split()
@@ -379,7 +379,7 @@ class Worker(multiprocessing.Process):
                     except Exception as e:
                         print_error(f"file {pnfsid} failed {e}")
                         pass
-                
+
             print_message(f"Done pool {pool}")
         chimera_db.close()
 
@@ -399,6 +399,7 @@ def main():
         print_error("Failed to load configuration %s" % (CONFIG_FILE,))
         sys.exit(1)
 
+    print(configuration)
     print_message("**** START ****")
 
 
@@ -419,8 +420,8 @@ def main():
         sys.exit(1)
 
     queue = multiprocessing.Queue(1000)
-    cpu_count = multiprocessing.cpu_count()
-    
+    cpu_count = multiprocessing.cpu_count() //  5
+
     workers = []
     for i in range(cpu_count):
         worker = Worker(queue, configuration)
