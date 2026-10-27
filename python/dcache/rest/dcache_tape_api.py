@@ -93,7 +93,7 @@ class TapeApi:
         data = {
             "paths" : files,
         }
-        r = self.session.post(base_url + "/release/" + request_id,
+        r = self.session.post(self.url + "/release/" + request_id,
                               data=json.dumps(data),
                               headers=self.headers)
         r.raise_for_status()
