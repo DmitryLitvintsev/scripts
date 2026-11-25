@@ -38,6 +38,8 @@ logger = logging.getLogger(__name__)
 
 home = os.getenv("HOME")
 TOKEN_FILE = os.path.join(home, ".config/scd-reporting/access_tokens.yaml")
+# prefix of the Slack DMs sent by run_weekly_report.py; such messages are not activity
+BOT_TAG = "[weekly-report]"
 
 
 # ── Date range ────────────────────────────────────────────────────────────────
@@ -240,7 +242,8 @@ def fetch_slack(token: str, start: datetime, end: datetime) -> dict:
 
             messages = history_response.get("messages", [])
             for msg in messages:
-                if msg.get("user") == user_id:
+                # skip the notifications of run_weekly_report.py (DMs to yourself)
+                if msg.get("user") == user_id and not msg.get("text", "").startswith(BOT_TAG):
                     readable_ts = datetime.fromtimestamp(float(msg.get("ts"))).strftime('%Y-%m-%d %H:%M:%S')
                     if channel_name not in messages_by_team[team]:
                         messages_by_team[team][channel_name] = []

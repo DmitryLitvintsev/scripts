@@ -25,6 +25,45 @@ $ python3 post_report.py -r ~/work/weekly_reports/weekly_report_2026-11-16_2026-
 To redo a past week, use `--last-week` (or `--days N`) in step 1 and pass the
 raw file with `--raw` in step 2.
 
+## Running from cron (`run_weekly_report.py`)
+
+`run_weekly_report.py` runs the whole pipeline unattended: it collects this
+week's activity, writes the report, posts it, and sends you a Slack DM with
+the link to the new entry, so you can fix it up on the website. If a step
+fails, the DM says which one, with the last lines of its output.
+
+```
+$ crontab -l
+MAILTO=""
+0 16 * * 5 $HOME/.local/share/scd-reporting/venv/bin/python $HOME/git/scripts/python/reports/run_weekly_report.py
+```
+
+It runs every Friday at 16:00, local time. `MAILTO=""` is there because the
+machine has no mail program: the Slack DM and the log are the only channels.
+
+- **Log:** `~/work/weekly_reports/logs/weekly_report_<date>.log`, with the
+  output of every step.
+- **One post per week:** after posting, the entry URL is saved in
+  `weekly_report_<monday>_<friday>.md.posted`. A rerun in the same week only
+  repeats the link. Delete that file to post again.
+- **Existing report kept:** if the week's report already exists (written by
+  hand, or by a run that failed while posting), it is posted as it is, not
+  regenerated.
+- **Overlapping runs:** a lock file prevents two runs at the same time.
+- **Test without posting:** `run_weekly_report.py --test` writes
+  `weekly_report_<monday>_<friday>.draft.md` and DMs you, but does not post.
+- **Test the notification only:**
+  `run_weekly_report.py --notify-only "hello"`.
+
+The DM is sent with the Slack token named `fnal` in `access_tokens.yaml`. To
+use another one, add `notify: {slack: <name>}`. That Slack app needs the
+**`chat:write`** user scope in addition to the read scopes below, then
+*Reinstall to Workspace*. The message goes to your own DM, which only you
+can see. Each of these messages starts with `[weekly-report]`, and
+`generate_report.py` skips messages with that tag, so the notifications do
+not show up as activity in a later report. Other notes you send yourself in
+that DM still count as activity.
+
 ## Setup
 
 ### Python
@@ -104,6 +143,9 @@ following these instructions:
     * `mpim:read`
     * `search:read`
     * `users:read`
+  - for the token that sends the cron job's DM (`fnal` by default), also
+    `chat:write`
+
 
 - Install the App and Retrieve the Token (download)
 
