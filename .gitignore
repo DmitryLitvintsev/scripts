@@ -1,0 +1,27 @@
+# Editor backup, autosave, swap and lock files
+
+# Emacs: backups (file~, file.~1~), autosaves (#file#), lock files (.#file)
+*~
+\#*\#
+.\#*
+
+# Vim / vi / nvim / nano: swap and lock files (.file.swp, .swo ... .swa),
+# persistent undo, sessions
+[._]*.sw[a-p]
+[._]sw[a-p]
+*.un~
+Session.vim
+.netrwhist
+
+# Generic backups and leftovers from patch / merge tools
+*.bak
+*.orig
+*.rej
+*.BACKUP.*
+*.BASE.*
+*.LOCAL.*
+*.REMOTE.*
+
+# Python bytecode caches
+__pycache__/
+*.py[cod]

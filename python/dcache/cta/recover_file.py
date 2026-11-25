@@ -504,27 +504,6 @@ class Worker(Process):
             " and disk_file_id_when_deleted = %s ",
             (archive_file_id, file_info.get("copy_nb"), pnfsid))
 
-#        res = insert(
-#            chimera_db,
-#            "update t_locationinfo "
-#            " set ilocation = %s "
-#            "where "
-#            "inumber = (select inumber from t_inodes where ipnfsid = %s)",
-#            (f"cta://cta/{pnfsid}?archiveid={archive_file_id}", pnfsid))
-#
-
-#        res = insert(
-#            chimera_db,
-#            "update nsert into t_storageinfo "
-#            "(inumber, ihsmname, istoragegroup, istoragesubgroup) "
-#            "values "
-#            "((select inumber from t_inodes where ipnfsid = %s), "
-#            "%s, %s, %s)",
-#            (pnfsid, hsm, vo, file_family))
-
-
-# delete from t_locationinfo where inumber = 12680326071 and itype = 1 ;
-
 
 def main() -> None:
     """Main function to process files that are already on tape."""

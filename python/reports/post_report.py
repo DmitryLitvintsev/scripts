@@ -3,7 +3,7 @@ from datetime import datetime, timedelta
 import os
 import requests
 
-home = os.getenv("HOME", "/Users/dmitrylitvintsev")
+home = os.getenv("HOME")
 
 
 TOKEN_FILE = os.path.join(home, ".config/scd-reporting/token")
